@@ -29,23 +29,37 @@ the people in that zone.
 
 ### Officer dashboard (`/officer`)
 
-- Map of every monitored zone, marker colour and size follow the computed risk.
-- Table of zones with rainfall in the last 24 hours, current water level, that
-  zone's own warning and danger marks, and the computed risk.
-- **Trigger alert** per zone: publishes a flood warning to that zone's Amazon
-  SNS topic, which fans out to every subscriber of that zone.
-- **Map** per zone: uploads an inundation map (image or GeoJSON) to Amazon S3.
-- **+40mm** per zone: pushes a wetter reading, so you can watch a zone move from
-  Warning to Severe live. This is where a real rain gauge feed would post.
+The district command center. 30 villages across Assam on one screen.
+
+- **Risk map** with every village coloured by its computed level, click through
+  to a drawer with that village's rivers, shelters and alert history.
+- **KPI strip**: villages above the danger mark, villages on warning, people at
+  risk, open relief requests, alerts dispatched.
+- **Risk donut** and **rainfall bars**, heaviest village first.
+- **12 day trend**: average rainfall against people at risk.
+- **Relief panel**: SOS requests citizens sent, each one acknowledgeable.
+- **Activity feed** of everything that happened, newest first.
+- **Replay slider**: step through the June 2022 Assam flood day by day, or
+  switch to Live, which pulls current rainfall from Open-Meteo.
+- **Satellite tab**: flood extent from a U-Net trained on Sen1Floods11. This is
+  a trained model and is labelled as such, separate from the rule based engine
+  everything else uses.
+- **Send alert**: writes the warning in Hindi and English and publishes it to
+  that village's Amazon SNS topic.
+
+Behind a sign in, because it is on the public internet.
 
 ### Citizen page (`/`)
 
-- Pick your area, see the risk level in plain words with advice you can act on.
-- See why: the exact rules that produced that level, in sentences.
-- See the latest inundation map for your area, served from Amazon S3.
-- Subscribe to alerts for your zone.
+- Pick your village, see the risk level in one word, in Hindi or English.
+- See why, in a sentence, and what to do about it.
+- See the inundation map for your village, served from Amazon S3.
+- See the nearest relief shelters.
+- Subscribe to alerts for your village.
 
-Mobile responsive. Readable in ten seconds by someone who has never seen it.
+Mobile responsive, one column, large type. The SIH build served citizens through
+an Android app; this hackathon is web only, so the same job is done by a page
+that needs no install.
 
 ---
 
@@ -54,8 +68,8 @@ Mobile responsive. Readable in ten seconds by someone who has never seen it.
 | Service | Where it is used | Judging line |
 |---|---|---|
 | **Amazon EC2** | A single t3.micro instance runs the whole stack: Nginx serving the React build, PHP-FPM running the Laravel API, and MySQL. This is the deployed app and the live URL. | Deployed on AWS, which satisfies the eligibility rule on its own. |
-| **Amazon S3** | Bucket holds the per-zone inundation maps. Officers upload through the dashboard, Laravel writes to the bucket, and the citizen page reads them back through a presigned URL so the bucket itself stays private. | Durable object storage for the artefact that matters most to a citizen: the map of what goes under water. |
-| **Amazon SNS** | One topic per zone. A citizen subscribing to their area creates an email subscription on that zone's topic. "Trigger alert" is a single `Publish` that SNS fans out to every confirmed subscriber of that zone. | Fan-out delivery that scales from 8 zones to 800 without the app changing. |
+| **Amazon S3** | Bucket holds the per-village inundation maps. Officers upload through the dashboard, Laravel writes to the bucket, and the citizen page reads them back through a presigned URL so the bucket itself stays private. | Durable object storage for the artefact that matters most to a citizen: the map of what goes under water. |
+| **Amazon SNS** | One topic per village, 30 of them. A citizen subscribing creates an email subscription on their village's topic. "Send alert" is a single `Publish` that SNS fans out to every confirmed subscriber of that village. | Targeted fan-out that scales from 30 villages to 3,000 without the app changing. It also replaces the Firebase push path, so alerts now reach people with no app installed. |
 
 Code pointers:
 
@@ -67,44 +81,25 @@ Code pointers:
 
 ## The risk engine
 
-Deliberately rule based, not machine learning. A district control room has to be
-able to explain why a warning went out, and a weekend model cannot be audited.
-Every level traces back to a published threshold.
+Rule based, not machine learning, and that is on purpose. A district control
+room has to be able to explain why a warning went out. `api/app/Services/RiskEngine.php`
+scores each village from three signals and returns the reason in Hindi and
+English, which is the same text the citizen page and the alert email show.
 
-`api/app/Services/RiskEngine.php`
+- **Rainfall**, 24 hour and 3 day totals, against the India Meteorological
+  Department categories.
+- **River level**, against that gauge station's own warning and danger marks.
+  Stations with no published thresholds skip this rule rather than guess, and
+  the seeder says out loud which ones those are.
+- **Elevation**, because the same rainfall means something different on low
+  ground.
 
-**Rule 1, rainfall in the last 24 hours.** India Meteorological Department
-categories:
+The score maps to **red**, **yellow** or **green**, and the engine also returns
+`hours_to_danger` where the river is rising fast enough to estimate it.
 
-| Rainfall | Score |
-|---|---|
-| under 64.5 mm | 0 |
-| 64.5 mm and above, heavy | 1 |
-| 115.6 mm and above, very heavy | 2 |
-| 204.5 mm and above, extremely heavy | 3 |
-
-**Rule 2, water level.** Against that zone's own marks, in the style the Central
-Water Commission publishes per gauge site:
-
-| Water level | Score |
-|---|---|
-| more than 1 m below the warning level | 0 |
-| within 1 m of the warning level | 1 |
-| at or above the warning level | 2 |
-| at or above the danger level | 3 |
-
-**Rule 3.** The worse of the two scores sets the floor.
-
-**Rule 4.** If rainfall and water level are both at 2 or more, escalate one step.
-Heavy rain landing on an already high river is worse than either signal alone.
-
-Score maps to **Safe**, **Watch**, **Warning**, **Severe**. Alerts go out at
-Warning and above. Every assessment returns its reasons as sentences, and those
-sentences appear on the citizen page and inside the alert email.
-
-Covered by `api/tests/Unit/RiskEngineTest.php`.
-
----
+The **Satellite** tab is the one exception: that flood extent comes from a U-Net
+trained on Sen1Floods11, which is a trained model, not a rule. The UI keeps the
+two visibly separate so nobody mistakes one for the other.
 
 ## SMS and DLT
 
@@ -129,7 +124,8 @@ clears, SNS sends SMS through the same topic with no application change.
 ```
 jalrakshak-aws/
   api/      Laravel 12 REST API
-  web/      React + Vite frontend
+  web/      React + Vite frontend (officer dashboard + citizen page)
+  data/     Assam demo CSVs the seeders read
   deploy/   Nginx config, EC2 setup script, IAM policy
 ```
 
@@ -137,23 +133,24 @@ jalrakshak-aws/
 
 ## Demo data
 
-Eight zones along the Brahmaputra, the Barak and the Kopili: Dibrugarh,
-Neamatighat (Jorhat), Tezpur, Pandu (Guwahati), Goalpara, Dhubri, Annapurna Ghat
-(Silchar) and Kampur (Nagaon).
+30 villages across 17 river stations in Assam, seeded from the CSVs in `data/`.
+Warning and danger marks are the Central Water Commission style values for those
+gauge sites. Eleven stations have no published thresholds; those villages are
+scored on rainfall and elevation only, and the seeder prints their names rather
+than inventing numbers.
 
-Warning and danger levels are the CWC style marks for those gauge sites, rounded
-for the demo. Each zone carries seven days of readings so the dashboard shows a
-trend, and the current readings are set so that two zones sit at each risk
-level.
+Two modes:
 
-Four illustrative inundation maps ship in `api/database/seed-maps/`, and the
-seeder publishes them to Amazon S3 on every `migrate --seed`. A fresh
-environment, including the one `deploy/ec2-setup.sh` builds, therefore comes up
-with maps already in the bucket. They are clearly marked as demo data on the
-image itself. If AWS credentials are missing the seeder reports it and carries
-on, rather than failing the seed.
+- **Replay 2022** steps through 12 days of the June 2022 Assam flood from
+  `data/assam_2022_replay.csv`. This is what the demo uses, and both pages label
+  it as a replay so it is never mistaken for today.
+- **Live** pulls current rainfall from Open-Meteo. A scheduled
+  `php artisan risk:compute --mode=live` keeps it fresh.
 
----
+Six illustrative inundation maps ship in `api/database/seed-maps/` and the
+seeder publishes them to Amazon S3 on every `migrate --seed`, so a fresh
+environment, including the one `deploy/ec2-setup.sh` builds, comes up with maps
+already in the bucket. They are marked as demo data on the image itself.
 
 ## Local setup
 
@@ -171,6 +168,7 @@ php artisan key:generate
 mysql -u root -e "CREATE DATABASE jalrakshak_aws CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 # set DB_USERNAME and DB_PASSWORD in .env
 php artisan migrate --seed
+php artisan risk:compute --mode=replay --day=5
 php artisan storage:link
 php artisan serve
 
@@ -231,33 +229,22 @@ Push an update later with `sudo /var/www/jalrakshak-aws/deploy/deploy.sh`.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| GET | `/api/health` | no | Liveness plus which AWS services are wired |
-| GET | `/api/zones` | no | Every zone with its current reading and risk |
-| GET | `/api/zones/{slug}` | no | One zone, with trend, map and alert history |
-| GET | `/api/alerts` | no | The alert log |
-| POST | `/api/subscribe` | no | Subscribe an email to a zone's SNS topic |
+| GET | `/api/health` | no | Liveness, plus which AWS services are wired |
+| GET | `/api/villages` | no | Every village with risk and summary, `?mode=live\|replay&day=N` |
+| GET | `/api/village/{id}` | no | One village: river, shelters, alerts, inundation map |
+| GET | `/api/village/{id}/forecast` | no | +24h / +48h forecast for that village |
+| GET | `/api/shelters` | no | All relief shelters |
+| GET | `/api/alerts` | no | Alert history |
+| POST | `/api/relief` | no | A citizen sends an SOS |
+| POST | `/api/subscribe` | no | Subscribe an email to a village's SNS topic |
+| POST | `/api/register-token` | no | Android push registration |
+| GET | `/api/sar/scenes` | no | Bundled SAR scenes and model provenance |
+| POST | `/api/sar/detect` | no | Run the U-Net on a scene |
 | POST | `/api/officer/login` | no | Returns the officer bearer token |
-| POST | `/api/officer/zones/{slug}/readings` | bearer | Record a new reading |
-| POST | `/api/officer/zones/{slug}/map` | bearer | Upload an inundation map to S3 |
-| POST | `/api/officer/zones/{slug}/alert` | bearer | Publish a flood warning to SNS |
-
----
-
-## Notes on the deployment
-
-- Credentials: the instance uses an **IAM instance role**
-  (`jalrakshak-ec2-role`), so there is no AWS key anywhere on the server.
-- Security group: port 80 open to the world, port 22 restricted to a single
-  operator IP.
-- IMDSv2 is required on the instance, and the setup script fetches a metadata
-  token accordingly.
-- `composer.json` pins `config.platform.php` to 8.3, so the lock file resolved
-  on a developer machine is installable on Ubuntu 24.04, which ships PHP 8.3.
-- The box has 2 GB of swap, added before the build, because t3.micro has under
-  1 GB of RAM.
-- Presigned S3 URLs are generated per request and kept short lived. Alert emails
-  link to `/?zone=<slug>` on the site rather than embedding a presigned URL,
-  because a URL signed with instance role credentials expires with them.
+| POST | `/api/alert` | bearer | Publish a warning to Amazon SNS |
+| GET | `/api/relief` | bearer | The officer's relief queue |
+| PATCH | `/api/relief/{id}` | bearer | Change a relief request's status |
+| POST | `/api/officer/village/{id}/map` | bearer | Upload an inundation map to Amazon S3 |
 
 ## What I would build next
 
