@@ -11,131 +11,120 @@ Total 3:00. Timings are the spoken length, so leave a little room.
 
 **Before you record**
 
-1. `sudo php artisan migrate:fresh --seed --force` in
-   `/var/www/jalrakshak-aws/api` on the server, so the board starts clean
-   at two zones per risk level. This also republishes the four demo inundation
-   maps to Amazon S3, so you do not need to upload anything by hand.
-2. Subscribe your own email to **Tezpur** on the citizen page, and click the
-   confirm link Amazon SNS sends you. Without that confirmation no email
-   arrives. Do this **after** the reseed, because the reseed clears subscribers.
-3. Have your inbox open in a second tab, already filtered to the SNS sender.
-4. Record at 1080p. Zoom the browser to about 125 percent so the table is
-   readable after compression.
-5. Optional, for one extra on camera moment: use the **Map** button on a zone
-   that has no map yet, such as Dibrugarh, to show an upload landing in S3 live.
+1. On the citizen page, pick **Cachar** and subscribe your own email. Then open
+   your inbox and click **Confirm subscription** in the mail from AWS. Nothing
+   arrives without that click, and the dashboard will honestly tell you nobody
+   is subscribed if you skip it.
+2. Sign in to the officer dashboard and leave it on **Replay 2022**, day 1.
+3. Have your inbox open in a second tab.
+4. Record at 1080p. The dashboard is dense; do not shrink the window.
 
 ---
 
 ## 1. The problem, 0:00 to 0:20
 
-> Every monsoon the Brahmaputra crosses its danger level and Assam floods. The
-> forecast is not the missing piece. The data exists. What is missing is the
-> last mile. The person in the village finds out when the water is already at
-> the door.
+> Every monsoon the Brahmaputra and the Barak cross their danger levels and
+> Assam floods. The forecast is not the missing piece. The data exists. What is
+> missing is the last mile. The person in the village finds out when the water
+> is already at the door.
 >
 > JalRakshak closes that gap.
 
-_On screen: the citizen page, a Severe zone showing._
+_On screen: the officer dashboard, replay at day 1, mostly green._
 
 ---
 
-## 2. Citizen page, 0:20 to 1:00
+## 2. Officer dashboard, 0:20 to 1:20
 
-_Pick Tezpur from the dropdown._
+> This is a district command center. Thirty villages across Assam, every one
+> scored right now.
 
-> This is the citizen side. I pick my area and I get one word: the risk level
-> right now, and what to do about it.
+_Drag the replay slider from day 1 towards day 6._
 
-_Scroll to the reasons list._
+> This is the June 2022 flood, replayed day by day. Watch the map.
 
-> And it tells me why. Not a black box score. The actual rules: rainfall in the
-> last 24 hours, and the river level against Tezpur's own danger mark.
+_Let it run. Green turns amber, then red._
+
+> Rainfall climbs, the rivers cross their warning marks, and by the twentieth of
+> June eighteen villages are above the danger line. A hundred and sixty five
+> thousand people.
+
+_Click a red village on the map to open the drawer._
+
+> And it tells you why. Not a score out of a black box. The rainfall, the river
+> level against that station's own danger mark, the elevation. The same sentence
+> in Hindi and English, because that is what goes out to people.
+
+_Point at the Satellite tab, do not open it unless you have time._
+
+> The Satellite tab is a separate thing: flood extent from a U-Net trained on
+> Sen1Floods11. It is a trained model, so the interface keeps it visibly apart
+> from the rule based engine everything else uses.
+
+---
+
+## 3. The alert, 1:20 to 2:00
+
+_Press **Send alert** in the top bar. Pick Cachar._
+
+> This is the only action an officer actually takes here. Pick the village,
+> check the Hindi and the English, send.
+
+_Send it._
+
+> That is one publish to Cachar's own **Amazon SNS** topic, and SNS fans it out
+> to everyone subscribed to that village. Not a blanket district SMS. Just the
+> village that needs it.
+
+_Switch to your inbox. The mail should already be there._
+
+> And it is already here. The level, what to do, and a link straight to the
+> page for that village.
+
+---
+
+## 4. Citizen page, 2:00 to 2:30
+
+_Follow the link in the email, or open the citizen page._
+
+> This is what a person in Cachar sees. One word: danger. What to do, in Hindi.
+> Why, in a sentence.
 
 _Scroll to the inundation map._
 
-> This is the inundation map for my area, the part that goes under water. It is
-> stored in **Amazon S3** and served here through a presigned URL.
+> The inundation map for their own village, stored in **Amazon S3** and served
+> through a presigned URL, so the bucket itself stays private.
 
-_Scroll to the subscribe form, type your email._
+_Scroll to shelters, then the subscribe box._
 
-> And I subscribe, so I get warned before the water arrives, not after.
-
----
-
-## 3. Officer dashboard, 1:00 to 1:50
-
-_Switch to `/officer`._
-
-> This is the district control room. Eight monitored zones across Assam, on the
-> Brahmaputra, the Barak and the Kopili.
-
-_Point at the map._
-
-> Every zone, coloured by risk. Green is safe, red is severe.
-
-_Point at the table._
-
-> And the numbers behind it. Rainfall in the last 24 hours, the current water
-> level, and each zone's own warning and danger marks, because 28 metres means
-> something different at Dhubri than it does at Tezpur.
-
-_Find the Tezpur row. It should read Warning._
-
-> Tezpur is at Warning. Now the rain picks up.
-
-_Press **+40mm** on the Tezpur row._
-
-> Forty more millimetres, and the risk flips from Warning to Severe. Rule four:
-> heavy rain landing on an already high river escalates a step.
-
-_Press **Trigger alert** on the Tezpur row._
-
-> One press. That publishes to Tezpur's **Amazon SNS** topic, and SNS fans it
-> out to everyone subscribed to that zone.
+> The nearest relief shelter. And the box that put them on the alert list in
+> the first place.
 
 ---
 
-## 4. The alert lands, 1:50 to 2:10
-
-_Switch to your inbox. The email should already be there._
-
-> And it is already here.
-
-_Open it._
-
-> The level, the rainfall, the water level against the danger mark, the exact
-> reasons, what to do, and a link to the inundation map. The same explanation
-> the officer saw.
-
----
-
-## 5. Where AWS fits, 2:10 to 2:40
-
-_Back to the dashboard, or a simple architecture slide._
+## 5. Where AWS fits, 2:30 to 2:50
 
 > Three AWS services, each doing a real job.
 >
-> **Amazon EC2** runs the whole thing. One t3.micro instance: Nginx serving the
-> React build, PHP-FPM running the Laravel API, MySQL alongside it. That is the
-> URL you are looking at.
+> **Amazon EC2** runs all of it. One t3.micro: Nginx serving the React build,
+> PHP-FPM running the Laravel API, MySQL alongside. That is the URL you are
+> looking at.
 >
-> **Amazon S3** holds the inundation maps. Officers upload, citizens read.
+> **Amazon S3** holds the inundation maps.
 >
-> **Amazon SNS** delivers the alerts. One topic per zone, one publish, fanned
-> out to every subscriber. Eight zones today, eight hundred tomorrow, no change
-> to the application.
+> **Amazon SNS** delivers the alerts, one topic per village.
+>
+> No AWS keys on that server, by the way. It uses an IAM instance role.
 
 ---
 
-## 6. Close, 2:40 to 3:00
+## 6. Close, 2:50 to 3:00
 
 > Alerts go by email today. SMS to Indian numbers needs TRAI DLT registration,
-> which takes weeks, so the number field is there and the app says so honestly
-> rather than faking it.
+> which takes weeks, so the app says so on screen instead of faking it.
 >
-> Next I would pull the readings straight from the CWC and IMD feeds, send the
-> alerts in Assamese and Bengali, and add a relief camp layer with the safe
-> route to the nearest one.
+> Next: pull the river levels straight from the CWC feed, and Assamese alongside
+> Hindi and English.
 >
 > JalRakshak. Built on AWS. Thank you.
 
@@ -149,10 +138,29 @@ twice.
 
 ## If something breaks on the day
 
-- Email does not arrive: the subscription was never confirmed. Check the SNS
-  console, Subscriptions, status must be **Confirmed**, not Pending.
-- Risk does not move on **+40mm**: that zone was already Severe. Use a Watch or
-  Warning zone instead.
-- Map does not show: `AWS_BUCKET` is unset in `api/.env` on the server, or the
-  IAM role is missing `s3:GetObject`.
-- Hit `/api/health` on the live URL. It says whether SNS and S3 are wired.
+- **Email does not arrive.** The subscription was never confirmed. The dashboard
+  will have said so: "nobody in this village has confirmed an alert subscription
+  yet". Check the SNS console, Subscriptions, status must be a real ARN, not
+  `PendingConfirmation`.
+- **Dashboard is empty.** `risk:compute` has not run.
+  `sudo php artisan risk:compute --mode=replay --day=5` in
+  `/var/www/jalrakshak-aws/api`.
+- **Live mode shows everything green.** That is probably correct, it is not the
+  monsoon. Use Replay 2022 for the demo.
+- **Map missing on a village.** Only six villages ship with a demo map. Cachar,
+  Barpeta, Dhubri, Goalpara, South Salmara and Morigaon all have one.
+- **Anything else.** Hit `/api/health` on the live URL. It says whether the
+  database is up and whether SNS and S3 are wired.
+
+## Reset to a clean demo state
+
+```bash
+ssh -i ~/.ssh/jalrakshak-aws.pem ubuntu@15.252.97.73
+cd /var/www/jalrakshak-aws/api
+sudo php artisan migrate:fresh --seed --force
+sudo php artisan risk:compute --mode=replay --day=5
+sudo php artisan jalrakshak:sns-setup
+```
+
+That clears alerts and relief requests and republishes the maps. It also clears
+subscribers, so subscribe and confirm your email again afterwards.
