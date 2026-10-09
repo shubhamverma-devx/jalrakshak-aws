@@ -17,8 +17,13 @@ use Throwable;
  */
 class MapStorage
 {
-    /** Minutes a presigned S3 URL stays valid. Six days, long enough for a demo weekend. */
-    public const URL_TTL_MINUTES = 60 * 24 * 6;
+    /**
+     * Minutes a presigned S3 URL stays valid. The URL is regenerated on every
+     * read, so it only has to outlive the page view that uses it. Asking for
+     * longer is misleading anyway: on EC2 the signature is made with instance
+     * role credentials, which expire in hours whatever is requested here.
+     */
+    public const URL_TTL_MINUTES = 60;
 
     public function disk(): string
     {

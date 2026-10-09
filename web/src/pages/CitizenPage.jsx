@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import RiskBadge from '../components/RiskBadge'
 import ZoneMap from '../components/ZoneMap'
@@ -8,8 +9,10 @@ import ZoneMap from '../components/ZoneMap'
  * subscribe to alerts. Built mobile first: one column, large type, no jargon.
  */
 export default function CitizenPage() {
+  // Alert emails link here as /?zone=tezpur, so open on that zone.
+  const [params, setParams] = useSearchParams()
   const [zones, setZones] = useState([])
-  const [slug, setSlug] = useState('')
+  const [slug, setSlug] = useState(params.get('zone') ?? '')
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -24,9 +27,14 @@ export default function CitizenPage() {
       .zones()
       .then((res) => {
         setZones(res.data)
-        // Open on the zone that needs attention most, so the page is never dull.
-        const worst = [...res.data].sort((a, b) => b.risk_score - a.risk_score)[0]
-        setSlug((current) => current || worst?.slug || '')
+
+        setSlug((current) => {
+          // A valid ?zone= wins. Otherwise open on the zone that needs
+          // attention most, so the page is never dull.
+          if (current && res.data.some((z) => z.slug === current)) return current
+          const worst = [...res.data].sort((a, b) => b.risk_score - a.risk_score)[0]
+          return worst?.slug ?? ''
+        })
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
@@ -86,7 +94,14 @@ export default function CitizenPage() {
 
       <div className="card">
         <label className="label" htmlFor="zone-picker">Your area</label>
-        <select id="zone-picker" value={slug} onChange={(e) => setSlug(e.target.value)}>
+        <select
+          id="zone-picker"
+          value={slug}
+          onChange={(e) => {
+            setSlug(e.target.value)
+            setParams({ zone: e.target.value }, { replace: true })
+          }}
+        >
           {zones.map((z) => (
             <option key={z.slug} value={z.slug}>
               {z.name} ({z.district})
