@@ -113,10 +113,19 @@ class SnsService
                 'ReturnSubscriptionArn' => true,
             ]);
 
+            $subscriptionArn = (string) $result->get('SubscriptionArn');
+
+            // Subscribing an address that already confirmed returns its real
+            // ARN and sends no second email. Only an unconfirmed one comes back
+            // as the literal string "pending confirmation".
+            $confirmed = str_starts_with($subscriptionArn, 'arn:');
+
             return [
-                'status' => 'pending',
-                'arn' => $result->get('SubscriptionArn'),
-                'note' => 'Check your inbox and click "Confirm subscription" to start receiving alerts.',
+                'status' => $confirmed ? 'confirmed' : 'pending',
+                'arn' => $confirmed ? $subscriptionArn : null,
+                'note' => $confirmed
+                    ? 'You are subscribed. Alerts for this zone will reach this address.'
+                    : 'Check your inbox and click "Confirm subscription" to start receiving alerts.',
             ];
         } catch (AwsException $e) {
             Log::error('SNS subscribe failed', ['zone' => $zone->slug, 'error' => $e->getAwsErrorMessage()]);
