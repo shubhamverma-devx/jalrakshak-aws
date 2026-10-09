@@ -124,6 +124,25 @@ set_env MAPS_DISK s3
 set_env SNS_ENABLED true
 set_env AWS_DEFAULT_REGION ap-south-1
 
+# The officer console is reachable from the internet, so it must not ship with
+# the placeholder credentials from .env.example. Generate them once and keep
+# them, so re-running this script does not change the password mid demo.
+OFFICER_PASS_FILE="/root/.jalrakshak-officer-pass"
+if [[ ! -f "$OFFICER_PASS_FILE" ]]; then
+  head -c 12 /dev/urandom | base64 | tr -d '/+=' > "$OFFICER_PASS_FILE"
+  chmod 600 "$OFFICER_PASS_FILE"
+fi
+OFFICER_PASS="$(cat "$OFFICER_PASS_FILE")"
+
+OFFICER_TOKEN_FILE="/root/.jalrakshak-officer-token"
+if [[ ! -f "$OFFICER_TOKEN_FILE" ]]; then
+  head -c 32 /dev/urandom | base64 | tr -d '/+=' > "$OFFICER_TOKEN_FILE"
+  chmod 600 "$OFFICER_TOKEN_FILE"
+fi
+
+set_env OFFICER_PASSWORD "$OFFICER_PASS"
+set_env OFFICER_TOKEN "$(cat "$OFFICER_TOKEN_FILE")"
+
 grep -q '^APP_KEY=base64' .env || php artisan key:generate --force
 
 echo
@@ -158,3 +177,7 @@ say "Done"
 echo "Citizen page : http://${PUBLIC_HOST}/"
 echo "Officer page : http://${PUBLIC_HOST}/officer"
 echo "Health check : http://${PUBLIC_HOST}/api/health"
+echo
+echo "Officer login: $(grep '^OFFICER_EMAIL=' "$APP_DIR/api/.env" | cut -d= -f2)"
+echo "Password     : ${OFFICER_PASS}"
+echo "(also kept in ${OFFICER_PASS_FILE})"
