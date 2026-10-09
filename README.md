@@ -4,7 +4,11 @@
 (WeMakeDevs x AWS, Bharat Builds Tour, 8 to 11 October 2026).
 Track: **Heat and Water (floods)**.
 
-> Live URL: _TBD, filled in once the EC2 instance is up._
+> **Live:** http://ec2-15-252-97-73.ap-south-1.compute.amazonaws.com/
+> **Officer dashboard:** http://ec2-15-252-97-73.ap-south-1.compute.amazonaws.com/officer
+> **Health check:** http://ec2-15-252-97-73.ap-south-1.compute.amazonaws.com/api/health
+>
+> Running on a single Amazon EC2 t3.micro in `ap-south-1`.
 
 ---
 
@@ -179,8 +183,14 @@ npm run dev
 Open http://localhost:5173 for the citizen page and
 http://localhost:5173/officer for the dashboard.
 
-Officer login for the demo: `officer@jalrakshak.in` / `jalrakshak2026`.
-Both are set in `api/.env` and are the one place to swap for real auth.
+Officer login for local development: `officer@jalrakshak.in` / `jalrakshak2026`,
+set in `api/.env`.
+
+The deployed instance does **not** use those. `deploy/ec2-setup.sh` generates a
+random officer password and bearer token on first run, prints the password at
+the end, and keeps it in `/root/.jalrakshak-officer-pass`. The officer console
+is reachable from the internet, so it must not ship with a password that is
+published in this README.
 
 ### Running without AWS
 
@@ -232,6 +242,22 @@ Push an update later with `sudo /var/www/jalrakshak-aws/deploy/deploy.sh`.
 | POST | `/api/officer/zones/{slug}/alert` | bearer | Publish a flood warning to SNS |
 
 ---
+
+## Notes on the deployment
+
+- Credentials: the instance uses an **IAM instance role**
+  (`jalrakshak-ec2-role`), so there is no AWS key anywhere on the server.
+- Security group: port 80 open to the world, port 22 restricted to a single
+  operator IP.
+- IMDSv2 is required on the instance, and the setup script fetches a metadata
+  token accordingly.
+- `composer.json` pins `config.platform.php` to 8.3, so the lock file resolved
+  on a developer machine is installable on Ubuntu 24.04, which ships PHP 8.3.
+- The box has 2 GB of swap, added before the build, because t3.micro has under
+  1 GB of RAM.
+- Presigned S3 URLs are generated per request and kept short lived. Alert emails
+  link to `/?zone=<slug>` on the site rather than embedding a presigned URL,
+  because a URL signed with instance role credentials expires with them.
 
 ## What I would build next
 
