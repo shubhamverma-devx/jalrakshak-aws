@@ -25,6 +25,18 @@ fi
 
 say() { printf '\n==> %s\n' "$1"; }
 
+say "Adding swap"
+# t3.micro has under 1 GB of RAM. The Vite build and composer can both spike
+# past that, so give the box 2 GB of swap before anything heavy runs.
+if ! swapon --show | grep -q /swapfile; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
+free -h | head -3
+
 say "Installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
