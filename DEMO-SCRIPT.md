@@ -2,9 +2,17 @@
 
 Total 3:00. Timings are the spoken length, so leave a little room.
 
+**The URLs**
+
+- Citizen: http://ec2-15-252-97-73.ap-south-1.compute.amazonaws.com/
+- Officer: http://ec2-15-252-97-73.ap-south-1.compute.amazonaws.com/officer
+- Officer login: `officer@jalrakshak.in`, password printed by the setup script
+  and kept in `/root/.jalrakshak-officer-pass` on the instance.
+
 **Before you record**
 
-1. `php artisan migrate:fresh --seed` on the server, so the board starts clean
+1. `sudo php artisan migrate:fresh --seed --force` in
+   `/var/www/jalrakshak-aws/api` on the server, so the board starts clean
    at two zones per risk level. This also republishes the four demo inundation
    maps to Amazon S3, so you do not need to upload anything by hand.
 2. Subscribe your own email to **Tezpur** on the citizen page, and click the
