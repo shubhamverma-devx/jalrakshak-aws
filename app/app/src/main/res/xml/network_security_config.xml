@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext (http://) traffic ki permission — SIRF development ke do host ke liye.
+
+  KYUN CHAHIYE: Android 9+ pe http:// by default BLOCK hai. Emulator se laptop ka
+  Laravel `php artisan serve` http pe chalta hai (10.0.2.2 = emulator ke andar se
+  host laptop ka address). Iske bina har API call "CLEARTEXT not permitted" se fail hoti.
+
+  KYUN BLANKET `cleartextTrafficPermitted=true` NAHI: wo poore internet ke liye http
+  khol deta — koi bhi beech mein baith ke citizen ka SOS aur location padh sakta hai.
+  Yahan sirf naam se gine hue host allowed hain, blanket permission nahi.
+
+  EC2 host kyun is list mein hai: us instance ka hostname amazonaws.com ke neeche aata
+  hai, aur Let's Encrypt us domain ke liye certificate jaari nahi karta. HTTPS ke liye
+  apna domain chahiye. Jab wo aa jaaye, ye entry hata dena.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- emulator ke andar se host laptop -->
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <!-- adb reverse use karo to ye kaam aata hai -->
+        <domain includeSubdomains="false">localhost</domain>
+        <!-- deployed API (Amazon EC2). Instance ka DNS badle to ye bhi badlo. -->
+        <domain includeSubdomains="false">ec2-15-252-97-73.ap-south-1.compute.amazonaws.com</domain>
+    </domain-config>
+</network-security-config>

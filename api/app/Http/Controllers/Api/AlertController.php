@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Alert;
 use App\Models\Village;
+use App\Services\FcmService;
 use App\Services\SnsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,14 +17,25 @@ use Illuminate\Http\Request;
  * Yahan officer ek GAON chunta hai aur sirf usi ke logon ko alert jaata hai — Hindi aur
  * English dono mein, "kya karo" ke saath.
  *
- * AWS EDITION: delivery ab Amazon SNS se hoti hai. Har gaon ka apna SNS topic hai, aur
- * citizen web page se apna email us topic pe subscribe karta hai. Ek Publish se wo alert
- * us gaon ke sab subscribers tak fan out ho jaata hai. App install ki zaroorat nahi,
- * aur SMS ke liye DLT ka intezaar bhi nahi.
+ * AWS EDITION: ab alert DO raaston se jaata hai, ek saath:
+ *
+ *   1. Android app  -> Firebase Cloud Messaging push  (jaisa SIH build mein tha)
+ *   2. Web          -> Amazon SNS email, har gaon ka apna topic
+ *
+ * KYUN DONO: app wale ko notification bajni chahiye, wahi product ka dil hai. Par app
+ * install karne wale hi sirf log nahi hain — jiske paas app nahi, uske liye web page se
+ * email subscribe karna kaafi hai, bina kuch install kiye.
+ *
+ * Dono mein se koi bhi fail ho to alert phir bhi DB mein save rehta hai, aur dashboard
+ * dono ka alag-alag nateeja dikhata hai. Aadha gaya aur poora gaya, ye farq officer ko
+ * pata hona chahiye.
  */
 class AlertController extends Controller
 {
-    public function __construct(private readonly SnsService $sns) {}
+    public function __construct(
+        private readonly FcmService $fcm,
+        private readonly SnsService $sns,
+    ) {}
 
     /**
      * POST /api/alert — ek gaon ko alert bhejo.
@@ -57,28 +69,33 @@ class AlertController extends Controller
         $village = Village::find($data['village_id']);
 
         // --------------------------------------------------------------------------
-        //  ASLI SNS PUBLISH — poore product ka sabse important moment.
+        //  ASLI DELIVERY — poore product ka sabse important moment.
         //
-        //  ORDER MAAYNE RAKHTA HAI: alert PEHLE DB mein save hua (upar), publish BAAD mein.
-        //  Kyun: SNS down ho to bhi alert ka record rehna chahiye — citizen page use
-        //  /api/alerts se dekh lega. Ulta karte (pehle publish, phir save) to SNS fail
-        //  hone pe alert kahin bhi na hota.
+        //  ORDER MAAYNE RAKHTA HAI: alert PEHLE DB mein save hua (upar), bhejna BAAD mein.
+        //  Kyun: FCM ya SNS down ho to bhi alert ka record rehna chahiye — app aur citizen
+        //  page dono use /api/alerts se dekh lenge. Ulta karte (pehle bhejo, phir save) to
+        //  delivery fail hone pe alert kahin bhi na hota.
         //
-        //  setRelation() se village pehle hi jod dete hain taaki SnsService dobara
-        //  DB query na kare (subject mein gaon ka naam chahiye hota hai).
+        //  setRelation() se village pehle hi jod dete hain taaki dono service dobara
+        //  DB query na karein (notification ke title aur email ke subject mein gaon ka
+        //  naam chahiye hota hai).
         //
-        //  SnsService kabhi exception nahi phenkta — har error pakad ke result mein
-        //  honestly wapas deta hai. Isliye yahan try/catch ki zaroorat nahi.
+        //  Koi bhi service exception nahi phenkti — har error pakad ke result mein
+        //  honestly wapas aata hai. Isliye yahan try/catch ki zaroorat nahi.
         // --------------------------------------------------------------------------
         $alert->setRelation('village', $village);
-        $push = $this->sns->sendForAlert($alert);
+        $push = $this->fcm->sendForAlert($alert);
+        $email = $this->sns->sendForAlert($alert);
 
         // Message wahi bole jo sach mein hua. "Bhej diya" tab hi jab SNS ne sach mein
         // bheja ho, warna officer ko lagta hai kaam ho gaya aur wo agla kadam nahi uthata.
+        $reached = $push['sent'] + $email['sent'];
+        $reachable = $push['devices'] + $email['devices'];
+
         $headline = match (true) {
-            $push['sent'] > 0 => "Alert {$village?->name} ke {$push['sent']} subscriber(s) ko bhej diya gaya.",
-            $push['failed'] > 0 => "Alert record ho gaya, par Amazon SNS ne bhejne se mana kar diya.",
-            default => "Alert record ho gaya, par {$village?->name} mein abhi kisi ne subscription confirm nahi ki hai.",
+            $reached > 0 => "Alert {$village?->name} mein {$reached} jagah pahuncha.",
+            $reachable === 0 => "Alert record ho gaya, par {$village?->name} mein abhi na koi app hai na koi email subscription.",
+            default => "Alert record ho gaya, par bhejne ki koshish fail hui.",
         };
 
         return response()->json([
@@ -89,14 +106,24 @@ class AlertController extends Controller
             // "is gaon mein kisi ne alert subscribe hi nahi kiya" (devices: 0) aur "bhejne ki
             // koshish fail hui" (error) mein. Dono mein alert nahi pahuncha, par kaaran — aur
             // officer ka agla kadam — bilkul alag hai.
+            // Android app ka raasta (Firebase Cloud Messaging).
             'push' => [
                 'sent' => $push['sent'] > 0,
                 'devices' => $push['devices'],
                 'success' => $push['sent'],
                 'failed' => $push['failed'],
                 'error' => $push['error'],
-                'channel' => $push['channel'],
-                'message_id' => $push['message_id'],
+                'channel' => 'fcm-push',
+            ],
+            // Web ka raasta (Amazon SNS email).
+            'email' => [
+                'sent' => $email['sent'] > 0,
+                'subscribers' => $email['devices'],
+                'success' => $email['sent'],
+                'failed' => $email['failed'],
+                'error' => $email['error'],
+                'channel' => $email['channel'],
+                'message_id' => $email['message_id'],
             ],
         ], 201);
     }

@@ -3,3 +3,10 @@
 .idea/
 .vscode/
 /scratch/
+
+# Android
+app/local.properties
+app/.gradle/
+app/build/
+app/app/build/
+app/app/google-services.json

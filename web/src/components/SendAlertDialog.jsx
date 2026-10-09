@@ -32,6 +32,8 @@ import {
   IconBell,
   IconCheck,
   IconChevronDown,
+  IconDeviceMobile,
+  IconMail,
   IconLoader2,
   IconRotate,
   IconSearch,
@@ -167,7 +169,7 @@ export default function SendAlertDialog({ open, onClose, villages, riskSource, o
       })
       // Success screen backend ke apne `push` block se banti hai — hum kuch maan kar
       // nahi likhte. devices 0 ho to wo bhi saaf dikhta hai (neeche warning).
-      setResult({ village, push: res.push })
+      setResult({ village, push: res.push, email: res.email })
       onSent()
     } catch (err) {
       onToast({ text: err.message, type: 'error' })
@@ -197,15 +199,16 @@ export default function SendAlertDialog({ open, onClose, villages, riskSource, o
           <div className="mt">
             <IconBell className="ti" />
             {result
-              ? result.push.success > 0
+              ? result.push.success + result.email.success > 0
                 ? 'Alert sent'
                 : 'Alert saved, not delivered'
               : 'Send alert to a village'}
           </div>
           {!result && (
             <div className="ms">
-              Everyone subscribed to this village gets an email through Amazon SNS. No app
-              install needed. Risk levels below are from <b>{riskSource}</b>.
+              Goes two ways at once: a push notification to every phone with the app in
+              this village, and an email through Amazon SNS to everyone subscribed on the
+              web. Risk levels below are from <b>{riskSource}</b>.
             </div>
           )}
           <button className="dclose" onClick={onClose} aria-label="Close">
@@ -222,52 +225,90 @@ export default function SendAlertDialog({ open, onClose, villages, riskSource, o
                   <IconCheck className="ti" />
                 </div>
                 <div className="h">
-                  {result.push.success > 0
+                  {result.push.success + result.email.success > 0
                     ? `Alert sent to ${result.village.name}`
                     : `Alert saved for ${result.village.name}`}
                 </div>
                 <div className="s">
-                  {result.push.success > 0
-                    ? `Published to this village's Amazon SNS topic and fanned out to every confirmed subscriber in ${result.village.district} district.`
-                    : `Saved to the alert log. Nothing left the building, see below.`}
+                  {result.push.success + result.email.success > 0
+                    ? `Delivered in ${result.village.district} district and saved to the alert log.`
+                    : 'Saved to the alert log. Nothing left the building, see below.'}
                 </div>
 
-                <div className="sent-stats">
-                  <div className="sent-stat">
-                    <div className="n">{result.push.devices}</div>
-                    <div className="l">Subscribed</div>
+                {/* Do raaste, do alag nateeje. Ek ka chalna doosre ka chalna nahi hai,
+                    aur officer ko dono alag dikhne chahiye. */}
+                <div className="sent-ch">
+                  <div className="sent-ch-head">
+                    <IconDeviceMobile className="ti" />
+                    <span>App push</span>
+                    <span className="sent-ch-tag">Firebase</span>
                   </div>
-                  <div className={`sent-stat${result.push.success > 0 ? ' ok' : ''}`}>
-                    <div className="n">{result.push.success}</div>
-                    <div className="l">Delivered</div>
-                  </div>
-                  <div className={`sent-stat${result.push.failed > 0 ? ' bad' : ''}`}>
-                    <div className="n">{result.push.failed}</div>
-                    <div className="l">Failed</div>
+                  <div className="sent-stats">
+                    <div className="sent-stat">
+                      <div className="n">{result.push.devices}</div>
+                      <div className="l">Phones</div>
+                    </div>
+                    <div className={`sent-stat${result.push.success > 0 ? ' ok' : ''}`}>
+                      <div className="n">{result.push.success}</div>
+                      <div className="l">Delivered</div>
+                    </div>
+                    <div className={`sent-stat${result.push.failed > 0 ? ' bad' : ''}`}>
+                      <div className="n">{result.push.failed}</div>
+                      <div className="l">Failed</div>
+                    </div>
                   </div>
                 </div>
 
-                {/* IMANDAARI: 0 subscriber hone par "sent!" dikha dena jhooth hai — alert
-                    DB mein hai par kisi tak gaya nahi. Ye farq officer ko dikhna hi chahiye,
-                    kyunki uska agla kadam isi pe tika hai. */}
-                {result.push.devices === 0 && (
+                <div className="sent-ch">
+                  <div className="sent-ch-head">
+                    <IconMail className="ti" />
+                    <span>Email</span>
+                    <span className="sent-ch-tag">Amazon SNS</span>
+                  </div>
+                  <div className="sent-stats">
+                    <div className="sent-stat">
+                      <div className="n">{result.email.subscribers}</div>
+                      <div className="l">Subscribed</div>
+                    </div>
+                    <div className={`sent-stat${result.email.success > 0 ? ' ok' : ''}`}>
+                      <div className="n">{result.email.success}</div>
+                      <div className="l">Delivered</div>
+                    </div>
+                    <div className={`sent-stat${result.email.failed > 0 ? ' bad' : ''}`}>
+                      <div className="n">{result.email.failed}</div>
+                      <div className="l">Failed</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* IMANDAARI: dono raaste khaali hon to "sent!" dikhana jhooth hai. */}
+                {result.push.devices === 0 && result.email.subscribers === 0 && (
                   <div className="sent-warn">
                     <IconAlertTriangle className="ti" />
                     <span>
-                      Nobody in {result.village.name} has confirmed an email subscription yet,
-                      so this alert reached no one. It is saved in the alert log. Anyone who
-                      subscribes on the citizen page and confirms will get the next one.
+                      Nobody in {result.village.name} has the app installed or a confirmed
+                      email subscription yet, so this alert reached no one. It is saved in
+                      the alert log, and whoever signs up next gets the following one.
                     </span>
                   </div>
                 )}
+
                 {result.push.error && result.push.devices > 0 && (
                   <div className="sent-warn">
                     <IconAlertTriangle className="ti" />
-                    <span>Delivery error: {result.push.error}</span>
+                    <span>Push error: {result.push.error}</span>
                   </div>
                 )}
-                {result.push.message_id && (
-                  <div className="sent-id mono">SNS message {result.push.message_id}</div>
+
+                {result.email.error && result.email.subscribers > 0 && (
+                  <div className="sent-warn">
+                    <IconAlertTriangle className="ti" />
+                    <span>Email error: {result.email.error}</span>
+                  </div>
+                )}
+
+                {result.email.message_id && (
+                  <div className="sent-id mono">SNS message {result.email.message_id}</div>
                 )}
               </div>
             </div>
