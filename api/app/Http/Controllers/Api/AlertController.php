@@ -73,8 +73,16 @@ class AlertController extends Controller
         $alert->setRelation('village', $village);
         $push = $this->sns->sendForAlert($alert);
 
+        // Message wahi bole jo sach mein hua. "Bhej diya" tab hi jab SNS ne sach mein
+        // bheja ho, warna officer ko lagta hai kaam ho gaya aur wo agla kadam nahi uthata.
+        $headline = match (true) {
+            $push['sent'] > 0 => "Alert {$village?->name} ke {$push['sent']} subscriber(s) ko bhej diya gaya.",
+            $push['failed'] > 0 => "Alert record ho gaya, par Amazon SNS ne bhejne se mana kar diya.",
+            default => "Alert record ho gaya, par {$village?->name} mein abhi kisi ne subscription confirm nahi ki hai.",
+        };
+
         return response()->json([
-            'message' => "Alert {$village?->name} ko bhej diya gaya.",
+            'message' => $headline,
             'alert' => $this->format($alert, $village),
             // Push ka ASLI nateeja — dashboard isko dikhata hai.
             // KYUN poora detail (sirf true/false nahi): officer ko farq pata hona chahiye
