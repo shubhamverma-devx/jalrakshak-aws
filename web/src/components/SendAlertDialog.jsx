@@ -196,12 +196,16 @@ export default function SendAlertDialog({ open, onClose, villages, riskSource, o
         <div className="modal-head">
           <div className="mt">
             <IconBell className="ti" />
-            {result ? 'Alert sent' : 'Send alert to a village'}
+            {result
+              ? result.push.success > 0
+                ? 'Alert sent'
+                : 'Alert saved, not delivered'
+              : 'Send alert to a village'}
           </div>
           {!result && (
             <div className="ms">
-              Every citizen app registered in the village gets a push notification. Risk levels
-              below are from <b>{riskSource}</b>.
+              Everyone subscribed to this village gets an email through Amazon SNS. No app
+              install needed. Risk levels below are from <b>{riskSource}</b>.
             </div>
           )}
           <button className="dclose" onClick={onClose} aria-label="Close">
@@ -217,16 +221,21 @@ export default function SendAlertDialog({ open, onClose, villages, riskSource, o
                 <div className="ring">
                   <IconCheck className="ti" />
                 </div>
-                <div className="h">Alert sent to {result.village.name}</div>
+                <div className="h">
+                  {result.push.success > 0
+                    ? `Alert sent to ${result.village.name}`
+                    : `Alert saved for ${result.village.name}`}
+                </div>
                 <div className="s">
-                  Saved to the alert log and pushed to registered devices in{' '}
-                  {result.village.district} district.
+                  {result.push.success > 0
+                    ? `Published to this village's Amazon SNS topic and fanned out to every confirmed subscriber in ${result.village.district} district.`
+                    : `Saved to the alert log. Nothing left the building, see below.`}
                 </div>
 
                 <div className="sent-stats">
                   <div className="sent-stat">
                     <div className="n">{result.push.devices}</div>
-                    <div className="l">Devices registered</div>
+                    <div className="l">Subscribed</div>
                   </div>
                   <div className={`sent-stat${result.push.success > 0 ? ' ok' : ''}`}>
                     <div className="n">{result.push.success}</div>
@@ -238,23 +247,27 @@ export default function SendAlertDialog({ open, onClose, villages, riskSource, o
                   </div>
                 </div>
 
-                {/* IMANDAARI: device 0 hone pa "sent!" dikha dena jhooth hai — alert DB mein
-                    hai par kisi phone tak nahi gaya. Ye farq officer ko dikhna hi chahiye. */}
+                {/* IMANDAARI: 0 subscriber hone par "sent!" dikha dena jhooth hai — alert
+                    DB mein hai par kisi tak gaya nahi. Ye farq officer ko dikhna hi chahiye,
+                    kyunki uska agla kadam isi pe tika hai. */}
                 {result.push.devices === 0 && (
                   <div className="sent-warn">
                     <IconAlertTriangle className="ti" />
                     <span>
-                      No devices are registered in {result.village.name} yet, so this alert
-                      reached no one. It is saved in the alert log and will be delivered to
-                      anyone who installs the citizen app and selects this village.
+                      Nobody in {result.village.name} has confirmed an email subscription yet,
+                      so this alert reached no one. It is saved in the alert log. Anyone who
+                      subscribes on the citizen page and confirms will get the next one.
                     </span>
                   </div>
                 )}
-                {result.push.error && (
+                {result.push.error && result.push.devices > 0 && (
                   <div className="sent-warn">
                     <IconAlertTriangle className="ti" />
-                    <span>Push error: {result.push.error}</span>
+                    <span>Delivery error: {result.push.error}</span>
                   </div>
+                )}
+                {result.push.message_id && (
+                  <div className="sent-id mono">SNS message {result.push.message_id}</div>
                 )}
               </div>
             </div>

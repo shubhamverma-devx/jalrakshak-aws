@@ -926,3 +926,12 @@ body.dash #root {
   color: var(--ink);
   background: color-mix(in srgb, var(--amber) 12%, var(--panel2));
 }
+
+/* SNS message id on the alert success screen. Chhota, par demo mein yahi saboot hai
+   ki alert sach mein AWS tak gaya. */
+.sent-id {
+  margin-top: 12px;
+  font-size: 10.5px;
+  color: var(--ink3);
+  word-break: break-all;
+}
