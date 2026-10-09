@@ -142,6 +142,13 @@ for the demo. Each zone carries seven days of readings so the dashboard shows a
 trend, and the current readings are set so that two zones sit at each risk
 level.
 
+Four illustrative inundation maps ship in `api/database/seed-maps/`, and the
+seeder publishes them to Amazon S3 on every `migrate --seed`. A fresh
+environment, including the one `deploy/ec2-setup.sh` builds, therefore comes up
+with maps already in the bucket. They are clearly marked as demo data on the
+image itself. If AWS credentials are missing the seeder reports it and carries
+on, rather than failing the seed.
+
 ---
 
 ## Local setup

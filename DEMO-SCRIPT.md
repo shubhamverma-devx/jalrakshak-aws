@@ -5,13 +5,16 @@ Total 3:00. Timings are the spoken length, so leave a little room.
 **Before you record**
 
 1. `php artisan migrate:fresh --seed` on the server, so the board starts clean
-   at two zones per risk level.
+   at two zones per risk level. This also republishes the four demo inundation
+   maps to Amazon S3, so you do not need to upload anything by hand.
 2. Subscribe your own email to **Tezpur** on the citizen page, and click the
-   confirm link Amazon SNS sends you. Without that confirmation no email arrives.
-3. Upload an inundation map image for Tezpur from the officer dashboard.
-4. Have your inbox open in a second tab, already filtered to the SNS sender.
-5. Record at 1080p. Zoom the browser to about 125 percent so the table is
+   confirm link Amazon SNS sends you. Without that confirmation no email
+   arrives. Do this **after** the reseed, because the reseed clears subscribers.
+3. Have your inbox open in a second tab, already filtered to the SNS sender.
+4. Record at 1080p. Zoom the browser to about 125 percent so the table is
    readable after compression.
+5. Optional, for one extra on camera moment: use the **Map** button on a zone
+   that has no map yet, such as Dibrugarh, to show an upload landing in S3 live.
 
 ---
 
