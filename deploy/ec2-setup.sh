@@ -88,7 +88,14 @@ sudo -u www-data -H composer install --no-dev --optimize-autoloader --no-interac
   || composer install --no-dev --optimize-autoloader --no-interaction
 
 say "Writing the .env"
-PUBLIC_HOST="$(curl -fsS --max-time 5 http://169.254.169.254/latest/meta-data/public-hostname || echo localhost)"
+# IMDSv2: fetch a token first. A plain GET is refused when the instance is
+# launched with HttpTokens=required, which is the hardened default here.
+IMDS_TOKEN="$(curl -fsS --max-time 5 -X PUT 'http://169.254.169.254/latest/api/token' \
+  -H 'X-aws-ec2-metadata-token-ttl-seconds: 300' || true)"
+
+PUBLIC_HOST="$(curl -fsS --max-time 5 \
+  -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" \
+  http://169.254.169.254/latest/meta-data/public-hostname || echo localhost)"
 
 if [[ ! -f .env ]]; then
   cp .env.example .env
