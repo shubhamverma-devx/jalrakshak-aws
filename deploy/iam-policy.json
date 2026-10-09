@@ -1,0 +1,32 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InundationMapsBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::jalrakshak-aws-maps",
+        "arn:aws:s3:::jalrakshak-aws-maps/*"
+      ]
+    },
+    {
+      "Sid": "ZoneAlertTopics",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:Subscribe",
+        "sns:Publish",
+        "sns:GetTopicAttributes",
+        "sns:ListTopics",
+        "sns:TagResource"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
