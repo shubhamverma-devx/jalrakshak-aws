@@ -33,11 +33,21 @@ class SubscriberController extends Controller
         $existing = Subscriber::where('zone_id', $zone->id)->where('email', $data['email'])->first();
 
         if ($existing) {
-            $existing->update(['phone' => $data['phone'] ?? $existing->phone]);
+            // Re-subscribing refreshes the status: SNS returns the real ARN for
+            // an address that has since confirmed, and sends no second email.
+            $refreshed = $this->sns->subscribeEmail($zone, $existing->email);
+
+            $existing->update([
+                'phone' => $data['phone'] ?? $existing->phone,
+                'sns_subscription_arn' => $refreshed['arn'] ?? $existing->sns_subscription_arn,
+                'sns_status' => $refreshed['status'],
+            ]);
 
             return response()->json([
                 'data' => ['zone' => $zone->name, 'email' => $existing->email, 'status' => $existing->sns_status],
-                'message' => 'You are already subscribed to alerts for '.$zone->name.'.',
+                'message' => $existing->sns_status === 'confirmed'
+                    ? 'You are already subscribed to alerts for '.$zone->name.'.'
+                    : 'Almost there. Check your inbox and confirm the subscription for '.$zone->name.'.',
                 'sms_note' => $this->smsNote($data['phone'] ?? null),
             ]);
         }
