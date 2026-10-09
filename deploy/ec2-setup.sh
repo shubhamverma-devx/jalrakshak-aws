@@ -150,8 +150,17 @@ echo "NOTE: set AWS_BUCKET, and either attach an IAM instance role or set"
 echo "      AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, in $APP_DIR/api/.env"
 echo
 
-say "Running migrations and seeding the Assam zones"
+say "Running migrations and seeding the Assam demo data"
 php artisan migrate --force --seed
+
+# Replay ka risk pehle se compute karke rakho, warna dashboard pehli baar khaali dikhta
+# hai jab tak scheduler nahi chalta.
+php artisan risk:compute --mode=replay --day=5 || true
+php artisan risk:compute --mode=live || true
+
+# Har gaon ka Amazon SNS topic bana do, taaki console mein dikhein.
+php artisan jalrakshak:sns-setup || true
+
 php artisan config:cache
 php artisan route:cache
 
@@ -164,6 +173,17 @@ say "Setting permissions"
 chown -R www-data:www-data "$APP_DIR/api/storage" "$APP_DIR/api/bootstrap/cache"
 chmod -R 775 "$APP_DIR/api/storage" "$APP_DIR/api/bootstrap/cache"
 chown -R www-data:www-data "$APP_DIR/web/dist"
+
+say "Scheduling risk:compute"
+# Laravel ka scheduler har minute chalta hai; routes/console.php tay karta hai ki
+# risk:compute kab chale. Cron root ke paas hai, command www-data ke roop mein.
+cat > /etc/cron.d/jalrakshak <<'CRON'
+* * * * * www-data cd /var/www/jalrakshak-aws/api && /usr/bin/php artisan schedule:run >> /var/log/jalrakshak-schedule.log 2>&1
+CRON
+chmod 644 /etc/cron.d/jalrakshak
+touch /var/log/jalrakshak-schedule.log
+chown www-data:www-data /var/log/jalrakshak-schedule.log
+systemctl restart cron
 
 say "Configuring Nginx"
 cp "$APP_DIR/deploy/nginx-jalrakshak.conf" /etc/nginx/sites-available/jalrakshak

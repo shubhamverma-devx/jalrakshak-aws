@@ -4,109 +4,144 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Alert;
-use App\Models\Zone;
-use App\Services\RiskEngine;
+use App\Models\Village;
 use App\Services\SnsService;
-use App\Services\ZonePresenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
+/**
+ * AlertController — officer ka targeted alert.
+ *
+ * YEHI PRODUCT KA DIL HAI. Govt ka system poore district ko ek jaisa SMS bhejta hai.
+ * Yahan officer ek GAON chunta hai aur sirf usi ke logon ko alert jaata hai — Hindi aur
+ * English dono mein, "kya karo" ke saath.
+ *
+ * AWS EDITION: delivery ab Amazon SNS se hoti hai. Har gaon ka apna SNS topic hai, aur
+ * citizen web page se apna email us topic pe subscribe karta hai. Ek Publish se wo alert
+ * us gaon ke sab subscribers tak fan out ho jaata hai. App install ki zaroorat nahi,
+ * aur SMS ke liye DLT ka intezaar bhi nahi.
+ */
 class AlertController extends Controller
 {
-    public function __construct(
-        private readonly RiskEngine $risk,
-        private readonly SnsService $sns,
-        private readonly ZonePresenter $presenter,
-    ) {}
+    public function __construct(private readonly SnsService $sns) {}
 
-    /** The alert log, newest first. */
-    public function index(): JsonResponse
+    /**
+     * POST /api/alert — ek gaon ko alert bhejo.
+     *
+     * BODY (JSON):
+     *   village_id  int    required
+     *   message_hi  string required  Hindi text (app ka default)
+     *   message_en  string required  English text (app ka toggle)
+     *   sent_by     string required  officer ka naam (auth nahi hai — scope LOCKED)
+     *
+     * OUTPUT: 201 + alert record
+     *
+     * KYUN dono bhasha client se: flood mein galat auto-translation jaan le sakti hai
+     * ("evacuate" ka ulta matlab). Officer khud dono likhta hai, ya dashboard ready-made
+     * template deta hai. Machine translation runtime pe = no.
+     */
+    public function store(Request $request): JsonResponse
     {
-        $alerts = Alert::with('zone:id,name,district,slug')
-            ->latest()
-            ->limit(30)
-            ->get()
-            ->map(fn (Alert $a) => [
-                'id' => $a->id,
-                'zone' => $a->zone?->name,
-                'zone_slug' => $a->zone?->slug,
-                'district' => $a->zone?->district,
-                'risk_level' => $a->risk_level,
-                'message' => $a->message,
-                'recipients_count' => $a->recipients_count,
-                'channel' => $a->channel,
-                'delivery_status' => $a->delivery_status,
-                'delivery_note' => $a->delivery_note,
-                'created_at' => $a->created_at->toIso8601String(),
-            ]);
+        $data = $request->validate([
+            'village_id' => ['required', 'integer', 'exists:villages,id'],
+            'message_hi' => ['required', 'string', 'max:500'],
+            'message_en' => ['required', 'string', 'max:500'],
+            'sent_by' => ['required', 'string', 'max:100'],
+        ]);
 
-        return response()->json(['data' => $alerts]);
+        $alert = Alert::create([
+            ...$data,
+            'sent_at' => now(),
+        ]);
+
+        $village = Village::find($data['village_id']);
+
+        // --------------------------------------------------------------------------
+        //  ASLI SNS PUBLISH — poore product ka sabse important moment.
+        //
+        //  ORDER MAAYNE RAKHTA HAI: alert PEHLE DB mein save hua (upar), publish BAAD mein.
+        //  Kyun: SNS down ho to bhi alert ka record rehna chahiye — citizen page use
+        //  /api/alerts se dekh lega. Ulta karte (pehle publish, phir save) to SNS fail
+        //  hone pe alert kahin bhi na hota.
+        //
+        //  setRelation() se village pehle hi jod dete hain taaki SnsService dobara
+        //  DB query na kare (subject mein gaon ka naam chahiye hota hai).
+        //
+        //  SnsService kabhi exception nahi phenkta — har error pakad ke result mein
+        //  honestly wapas deta hai. Isliye yahan try/catch ki zaroorat nahi.
+        // --------------------------------------------------------------------------
+        $alert->setRelation('village', $village);
+        $push = $this->sns->sendForAlert($alert);
+
+        return response()->json([
+            'message' => "Alert {$village?->name} ko bhej diya gaya.",
+            'alert' => $this->format($alert, $village),
+            // Push ka ASLI nateeja — dashboard isko dikhata hai.
+            // KYUN poora detail (sirf true/false nahi): officer ko farq pata hona chahiye
+            // "is gaon mein kisi ne alert subscribe hi nahi kiya" (devices: 0) aur "bhejne ki
+            // koshish fail hui" (error) mein. Dono mein alert nahi pahuncha, par kaaran — aur
+            // officer ka agla kadam — bilkul alag hai.
+            'push' => [
+                'sent' => $push['sent'] > 0,
+                'devices' => $push['devices'],
+                'success' => $push['sent'],
+                'failed' => $push['failed'],
+                'error' => $push['error'],
+                'channel' => $push['channel'],
+                'message_id' => $push['message_id'],
+            ],
+        ], 201);
     }
 
     /**
-     * Officer presses "Trigger alert" on a zone.
+     * GET /api/alerts — bheje gaye alerts (dashboard history + app ka feed).
      *
-     * One publish to the zone's Amazon SNS topic fans the warning out to every
-     * confirmed subscriber of that zone.
+     * QUERY PARAMS:
+     *   ?village_id=5  (optional — sirf ek gaon ke, app isi ka use karti hai)
+     *   ?limit=50      (default 50, max 200)
+     *
+     * OUTPUT: alerts[] (naye pehle)
+     *
+     * KYUN ye route BUILD_PLAN ki list mein nahi tha par bana diya: alert bhejne ke baad
+     * "gaya ya nahi" verify karne ka koi tareeka hi nahi tha, aur citizen app ka "purane alerts"
+     * tab (section 2 mein locked feature hai) isi pe chalega. Naya feature nahi — wahi
+     * alerts table ka read.
      */
-    public function trigger(Request $request, Zone $zone): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $request->validate([
-            'note' => ['nullable', 'string', 'max:400'],
-        ]);
+        $limit = min(max((int) $request->query('limit', 50), 1), 200);
 
-        $assessment = $this->risk->assess($zone);
+        $query = Alert::with('village:id,name,district');
 
-        if (! $assessment['has_data']) {
-            return response()->json([
-                'message' => 'This zone has no reading yet, so there is nothing to warn about.',
-            ], 422);
+        if ($request->filled('village_id')) {
+            $query->where('village_id', (int) $request->query('village_id'));
         }
 
-        $message = $this->risk->alertMessage($zone, $assessment, $this->zoneUrl($zone));
-
-        if ($request->filled('note')) {
-            $message .= "\n\nOfficer note: ".$request->input('note');
-        }
-
-        $subject = sprintf('JalRakshak %s alert: %s', $assessment['level'], $zone->name);
-        $recipients = $this->sns->recipientCount($zone);
-
-        $result = $this->sns->publishAlert($zone, $subject, $message);
-
-        $alert = Alert::create([
-            'zone_id' => $zone->id,
-            'risk_level' => $assessment['level'],
-            'message' => $message,
-            'recipients_count' => $recipients,
-            'channel' => 'sns-email',
-            'sns_message_id' => $result['message_id'],
-            'delivery_status' => $result['status'],
-            'delivery_note' => $result['note'],
-            'triggered_by' => 'officer',
-        ]);
-
-        $status = $result['status'] === 'failed' ? 502 : 200;
+        $alerts = $query->orderByDesc('sent_at')->limit($limit)->get();
 
         return response()->json([
-            'data' => [
-                'id' => $alert->id,
-                'zone' => $zone->name,
-                'risk_level' => $alert->risk_level,
-                'recipients_count' => $alert->recipients_count,
-                'delivery_status' => $alert->delivery_status,
-                'sns_message_id' => $alert->sns_message_id,
-                'message' => $alert->message,
-                'created_at' => $alert->created_at->toIso8601String(),
-            ],
-            'zone' => $this->presenter->summary($zone),
-            'message' => $result['note'],
-        ], $status);
+            'count' => $alerts->count(),
+            'alerts' => $alerts->map(fn ($a) => $this->format($a, $a->village))->values(),
+        ]);
     }
 
-    /** The citizen page for this zone, which always shows a fresh map. */
-    private function zoneUrl(Zone $zone): string
+    /**
+     * format() — alert ka JSON shape (store + index dono ke liye ek hi).
+     * INPUT: Alert, Village|null | OUTPUT: array
+     */
+    private function format(Alert $alert, ?Village $village): array
     {
-        return rtrim(config('app.url'), '/').'/?zone='.$zone->slug;
+        return [
+            'id' => $alert->id,
+            'village' => $village ? [
+                'id' => $village->id,
+                'name' => $village->name,
+                'district' => $village->district,
+            ] : null,
+            'message_hi' => $alert->message_hi,
+            'message_en' => $alert->message_en,
+            'sent_by' => $alert->sent_by,
+            'sent_at' => $alert->sent_at?->toIso8601String(),
+        ];
     }
 }

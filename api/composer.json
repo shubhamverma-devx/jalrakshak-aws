@@ -13,7 +13,8 @@
         "aws/aws-sdk-php": "^3.400",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "league/flysystem-aws-s3-v3": "^3.35"
+        "league/flysystem-aws-s3-v3": "^3.35",
+        "symfony/process": "^7.4"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

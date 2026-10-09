@@ -2,18 +2,21 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Subscriber extends Model
 {
-    use HasFactory;
+    protected $fillable = ['village_id', 'email', 'phone', 'sns_subscription_arn', 'sns_status'];
 
-    protected $fillable = ['zone_id', 'email', 'phone', 'sns_subscription_arn', 'sns_status'];
-
-    public function zone(): BelongsTo
+    public function village(): BelongsTo
     {
-        return $this->belongsTo(Zone::class);
+        return $this->belongsTo(Village::class);
+    }
+
+    /** Only confirmed addresses actually receive an SNS publish. */
+    public function scopeConfirmed($query)
+    {
+        return $query->where('sns_status', 'confirmed');
     }
 }

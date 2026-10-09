@@ -2,16 +2,16 @@
 
 namespace App\Services;
 
-use App\Models\Zone;
+use App\Models\Village;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * Amazon S3 storage for per zone inundation maps.
+ * Amazon S3 storage for per village inundation maps.
  *
- * Officers upload an image or a GeoJSON file per zone. The file goes to the
+ * Officers upload an image or a GeoJSON file per village. The file goes to the
  * S3 bucket, and the citizen page reads it back through a presigned URL so the
  * bucket itself can stay private.
  */
@@ -36,14 +36,14 @@ class MapStorage
     }
 
     /**
-     * Put an uploaded map in storage and record it on the zone.
+     * Put an uploaded map in storage and record it on the village.
      *
      * @return array{path: string, url: ?string, disk: string}
      */
-    public function store(Zone $zone, UploadedFile $file): array
+    public function store(Village $village, UploadedFile $file): array
     {
         return $this->put(
-            $zone,
+            $village,
             $file->get(),
             strtolower($file->getClientOriginalExtension() ?: 'bin'),
             $file->getMimeType() ?: 'application/octet-stream',
@@ -56,10 +56,10 @@ class MapStorage
      *
      * @return array{path: string, url: ?string, disk: string}
      */
-    public function storeFromPath(Zone $zone, string $absolutePath): array
+    public function storeFromPath(Village $village, string $absolutePath): array
     {
         return $this->put(
-            $zone,
+            $village,
             (string) file_get_contents($absolutePath),
             strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION) ?: 'bin'),
             mime_content_type($absolutePath) ?: 'application/octet-stream',
@@ -69,19 +69,19 @@ class MapStorage
     /**
      * @return array{path: string, url: ?string, disk: string}
      */
-    private function put(Zone $zone, string $contents, string $extension, string $mime): array
+    private function put(Village $village, string $contents, string $extension, string $mime): array
     {
-        $filename = sprintf('%s-%s.%s', $zone->slug, now()->format('Ymd-His'), $extension);
-        $path = 'inundation-maps/'.$zone->slug.'/'.$filename;
+        $filename = sprintf('%s-%s.%s', $village->id, now()->format('Ymd-His'), $extension);
+        $path = 'inundation-maps/'.$village->id.'/'.$filename;
 
         Storage::disk($this->disk())->put($path, $contents, ['ContentType' => $mime]);
 
         // Delete the map this one replaces so the bucket does not grow forever.
-        if ($zone->inundation_map_path && $zone->inundation_map_path !== $path) {
-            $this->delete($zone->inundation_map_path);
+        if ($village->inundation_map_path && $village->inundation_map_path !== $path) {
+            $this->delete($village->inundation_map_path);
         }
 
-        $zone->update([
+        $village->update([
             'inundation_map_path' => $path,
             'inundation_map_updated_at' => now(),
         ]);
@@ -114,18 +114,18 @@ class MapStorage
         }
     }
 
-    public function urlFor(Zone $zone): ?string
+    public function urlFor(Village $village): ?string
     {
-        return $this->urlForPath($zone->inundation_map_path);
+        return $this->urlForPath($village->inundation_map_path);
     }
 
-    /** Remove every stored map for a zone. Used when reseeding a demo environment. */
-    public function clearZone(Zone $zone): void
+    /** Remove every stored map for a village. Used when reseeding a demo environment. */
+    public function clearVillage(Village $village): void
     {
         try {
-            Storage::disk($this->disk())->deleteDirectory('inundation-maps/'.$zone->slug);
+            Storage::disk($this->disk())->deleteDirectory('inundation-maps/'.$village->id);
         } catch (Throwable $e) {
-            Log::warning('Could not clear inundation maps', ['zone' => $zone->slug, 'error' => $e->getMessage()]);
+            Log::warning('Could not clear inundation maps', ['village' => $village->id, 'error' => $e->getMessage()]);
         }
     }
 

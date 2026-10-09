@@ -7,15 +7,29 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        // JalRakshak = pure JSON API (decision D3). Saare endpoints /api prefix ke peeche.
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Behind a proxy the app would otherwise think it is on http:// and build
+        // wrong URLs and log the wrong client IP. On EC2 Nginx is the only thing
+        // in front of PHP-FPM, so trusting it is safe.
+        $middleware->trustProxies(at: '*');
+
+        // Officer gate. Read routes stay public so the citizen page needs no
+        // login; writes (alerts, relief, map upload) sit behind this.
         $middleware->alias([
             'officer' => \App\Http\Middleware\OfficerToken::class,
         ]);
+
+        // API stateless hai (BUILD_PLAN section 6) — koi session/CSRF nahi, isliye default
+        // api middleware group hi kaafi hai. Sanctum jaan-bujh ke install nahi kiya:
+        // auth future scope hai (section 2), aur droplet 1GB pe har extra package ka weight hai.
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // API-only app hai — error bhi hamesha JSON mein jaana chahiye, HTML page kabhi nahi.
+        // Kotlin app aur React dashboard dono JSON hi parse karte hain; HTML aaya to crash.
+        $exceptions->shouldRenderJsonWhen(fn () => true);
     })->create();

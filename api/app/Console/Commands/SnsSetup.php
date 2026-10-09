@@ -2,43 +2,60 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Zone;
+use App\Models\Village;
 use App\Services\SnsService;
 use Illuminate\Console\Command;
 use Throwable;
 
 /**
- * Creates the Amazon SNS topic for every zone up front, so the topics are
- * visible in the console before anyone subscribes. CreateTopic is idempotent,
- * so re-running this is safe.
+ * Har gaon ka Amazon SNS topic pehle se bana deta hai, taaki kisi ke subscribe karne se
+ * pehle hi topics console mein dikhein. CreateTopic idempotent hai, isliye dobara chalana
+ * safe hai.
  */
 class SnsSetup extends Command
 {
-    protected $signature = 'jalrakshak:sns-setup';
+    protected $signature = 'jalrakshak:sns-setup {--district= : sirf is district ke gaon}';
 
-    protected $description = 'Create an Amazon SNS topic for each monitored zone';
+    protected $description = 'Create an Amazon SNS topic for each village';
 
     public function handle(SnsService $sns): int
     {
         if (! $sns->enabled()) {
-            $this->error('SNS is turned off. Set SNS_ENABLED=true in .env first.');
+            $this->error('SNS band hai. Pehle .env mein SNS_ENABLED=true karo.');
 
             return self::FAILURE;
         }
 
-        $rows = [];
+        $query = Village::orderBy('district')->orderBy('name');
 
-        foreach (Zone::orderBy('name')->get() as $zone) {
-            try {
-                $arn = $sns->ensureTopic($zone);
-                $rows[] = [$zone->name, $sns->topicName($zone), $arn ? 'ok' : 'skipped'];
-            } catch (Throwable $e) {
-                $rows[] = [$zone->name, $sns->topicName($zone), 'failed: '.$e->getMessage()];
-            }
+        if ($district = $this->option('district')) {
+            $query->where('district', $district);
         }
 
-        $this->table(['Zone', 'Topic', 'Status'], $rows);
+        $villages = $query->get();
+        $ok = 0;
+        $failed = 0;
 
-        return self::SUCCESS;
+        $bar = $this->output->createProgressBar($villages->count());
+        $bar->start();
+
+        foreach ($villages as $village) {
+            try {
+                $sns->ensureTopic($village);
+                $ok++;
+            } catch (Throwable $e) {
+                $failed++;
+                $this->newLine();
+                $this->warn("  {$village->name}: ".$e->getMessage());
+            }
+
+            $bar->advance();
+        }
+
+        $bar->finish();
+        $this->newLine(2);
+        $this->info("Topics ready: {$ok}".($failed ? ", failed: {$failed}" : ''));
+
+        return $failed ? self::FAILURE : self::SUCCESS;
     }
 }
