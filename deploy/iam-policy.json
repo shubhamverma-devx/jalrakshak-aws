@@ -16,7 +16,7 @@
       ]
     },
     {
-      "Sid": "ZoneAlertTopics",
+      "Sid": "VillageAlertTopics",
       "Effect": "Allow",
       "Action": [
         "sns:CreateTopic",
@@ -24,6 +24,8 @@
         "sns:Publish",
         "sns:GetTopicAttributes",
         "sns:ListTopics",
+        "sns:ListSubscriptionsByTopic",
+        "sns:GetSubscriptionAttributes",
         "sns:TagResource"
       ],
       "Resource": "*"
