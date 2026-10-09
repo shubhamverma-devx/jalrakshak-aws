@@ -24,7 +24,8 @@ Route::get('/health', function (SnsService $sns, MapStorage $maps) {
         'aws' => [
             'sns_enabled' => $sns->enabled(),
             'maps_disk' => $maps->disk(),
-            'region' => env('AWS_DEFAULT_REGION'),
+            'region' => config('jalrakshak.aws.region'),
+            'bucket' => config('jalrakshak.aws.bucket'),
         ],
     ];
 });

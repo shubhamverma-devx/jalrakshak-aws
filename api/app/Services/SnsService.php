@@ -29,14 +29,26 @@ class SnsService
 
     private function client(): SnsClient
     {
-        return $this->client ??= new SnsClient([
+        if ($this->client) {
+            return $this->client;
+        }
+
+        $config = [
             'version' => 'latest',
-            'region' => config('services.sns.region') ?: env('AWS_DEFAULT_REGION', 'ap-south-1'),
-            'credentials' => [
-                'key' => env('AWS_ACCESS_KEY_ID'),
-                'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            ],
-        ]);
+            'region' => config('jalrakshak.aws.region'),
+        ];
+
+        // Only pass explicit keys when they are set. Leaving them out lets the
+        // SDK fall back to its default chain, which is how an IAM instance role
+        // on EC2 works, with no credentials on the server at all.
+        $key = config('jalrakshak.aws.key');
+        $secret = config('jalrakshak.aws.secret');
+
+        if ($key && $secret) {
+            $config['credentials'] = ['key' => $key, 'secret' => $secret];
+        }
+
+        return $this->client = new SnsClient($config);
     }
 
     public function topicName(Zone $zone): string

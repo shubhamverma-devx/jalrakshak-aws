@@ -4,8 +4,10 @@ namespace Database\Seeders;
 
 use App\Models\Reading;
 use App\Models\Zone;
+use App\Services\MapStorage;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Throwable;
 
 /**
  * Eight monitored zones along the Brahmaputra, Barak and Kopili in Assam.
@@ -81,6 +83,39 @@ class ZoneSeeder extends Seeder
 
             $zone->readings()->delete();
             $this->seedHistory($zone, $rainfall, $water);
+            $this->seedMap($zone);
+        }
+    }
+
+    /**
+     * Publish the bundled demo inundation map for this zone, if there is one.
+     *
+     * This runs on every seed so a fresh demo environment, including the one
+     * built by deploy/ec2-setup.sh, comes up with maps already in Amazon S3.
+     * A storage failure is reported but never fails the seed, so the app still
+     * comes up when AWS credentials are missing.
+     */
+    private function seedMap(Zone $zone): void
+    {
+        $source = database_path('seed-maps/'.$zone->slug.'.png');
+
+        if (! is_file($source)) {
+            return;
+        }
+
+        try {
+            $maps = app(MapStorage::class);
+
+            // A reseed drops the stored path, so clear the zone's folder first
+            // and the bucket does not collect orphans.
+            $maps->clearZone($zone);
+
+            $stored = $maps->storeFromPath($zone, $source);
+            $this->command?->getOutput()->writeln(
+                "  <fg=gray>map for {$zone->name} -> {$stored['disk']}:{$stored['path']}</>"
+            );
+        } catch (Throwable $e) {
+            $this->command?->warn("  could not publish the map for {$zone->name}: ".$e->getMessage());
         }
     }
 

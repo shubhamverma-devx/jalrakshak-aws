@@ -128,7 +128,7 @@ class RiskEngine
     }
 
     /** The alert text published to Amazon SNS. */
-    public function alertMessage(Zone $zone, array $assessment): string
+    public function alertMessage(Zone $zone, array $assessment, ?string $mapUrl = null): string
     {
         $lines = [
             sprintf('JALRAKSHAK FLOOD %s: %s, %s district.', strtoupper($assessment['level']), $zone->name, $zone->district),
@@ -141,9 +141,9 @@ class RiskEngine
             'What to do: '.$this->advice($assessment['level']),
         ];
 
-        if ($zone->inundation_map_url) {
+        if ($mapUrl) {
             $lines[] = '';
-            $lines[] = 'Inundation map: '.$zone->inundation_map_url;
+            $lines[] = 'Inundation map: '.$mapUrl;
         }
 
         $lines[] = '';

@@ -14,7 +14,7 @@ class Zone extends Model
     protected $fillable = [
         'name', 'slug', 'district', 'river', 'latitude', 'longitude', 'population',
         'warning_level_m', 'danger_level_m',
-        'inundation_map_path', 'inundation_map_url', 'inundation_map_updated_at',
+        'inundation_map_path', 'inundation_map_updated_at',
         'sns_topic_arn',
     ];
 

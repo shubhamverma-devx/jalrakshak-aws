@@ -22,9 +22,10 @@ return new class extends Migration
             $table->decimal('warning_level_m', 6, 2);
             $table->decimal('danger_level_m', 6, 2);
 
-            // Inundation map stored in Amazon S3.
+            // Inundation map stored in Amazon S3. Only the object key is kept:
+            // the readable URL is presigned and short lived, so it is generated
+            // on every read rather than stored.
             $table->string('inundation_map_path')->nullable();
-            $table->string('inundation_map_url')->nullable();
             $table->timestamp('inundation_map_updated_at')->nullable();
 
             // Amazon SNS topic that alerts for this zone fan out to.

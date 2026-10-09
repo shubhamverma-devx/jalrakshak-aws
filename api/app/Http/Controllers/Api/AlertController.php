@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Alert;
 use App\Models\Zone;
+use App\Services\MapStorage;
 use App\Services\RiskEngine;
 use App\Services\SnsService;
 use App\Services\ZonePresenter;
@@ -16,6 +17,7 @@ class AlertController extends Controller
     public function __construct(
         private readonly RiskEngine $risk,
         private readonly SnsService $sns,
+        private readonly MapStorage $maps,
         private readonly ZonePresenter $presenter,
     ) {}
 
@@ -63,7 +65,7 @@ class AlertController extends Controller
             ], 422);
         }
 
-        $message = $this->risk->alertMessage($zone, $assessment);
+        $message = $this->risk->alertMessage($zone, $assessment, $this->maps->urlFor($zone));
 
         if ($request->filled('note')) {
             $message .= "\n\nOfficer note: ".$request->input('note');

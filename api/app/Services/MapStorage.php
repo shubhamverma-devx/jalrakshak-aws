@@ -37,13 +37,39 @@ class MapStorage
      */
     public function store(Zone $zone, UploadedFile $file): array
     {
-        $extension = strtolower($file->getClientOriginalExtension() ?: 'bin');
+        return $this->put(
+            $zone,
+            $file->get(),
+            strtolower($file->getClientOriginalExtension() ?: 'bin'),
+            $file->getMimeType() ?: 'application/octet-stream',
+        );
+    }
+
+    /**
+     * Same, from a file already on disk. Used by the seeder to publish the
+     * bundled demo maps.
+     *
+     * @return array{path: string, url: ?string, disk: string}
+     */
+    public function storeFromPath(Zone $zone, string $absolutePath): array
+    {
+        return $this->put(
+            $zone,
+            (string) file_get_contents($absolutePath),
+            strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION) ?: 'bin'),
+            mime_content_type($absolutePath) ?: 'application/octet-stream',
+        );
+    }
+
+    /**
+     * @return array{path: string, url: ?string, disk: string}
+     */
+    private function put(Zone $zone, string $contents, string $extension, string $mime): array
+    {
         $filename = sprintf('%s-%s.%s', $zone->slug, now()->format('Ymd-His'), $extension);
         $path = 'inundation-maps/'.$zone->slug.'/'.$filename;
 
-        Storage::disk($this->disk())->put($path, $file->get(), [
-            'ContentType' => $file->getMimeType() ?: 'application/octet-stream',
-        ]);
+        Storage::disk($this->disk())->put($path, $contents, ['ContentType' => $mime]);
 
         // Delete the map this one replaces so the bucket does not grow forever.
         if ($zone->inundation_map_path && $zone->inundation_map_path !== $path) {
@@ -52,11 +78,10 @@ class MapStorage
 
         $zone->update([
             'inundation_map_path' => $path,
-            'inundation_map_url' => $this->urlForPath($path),
             'inundation_map_updated_at' => now(),
         ]);
 
-        return ['path' => $path, 'url' => $zone->inundation_map_url, 'disk' => $this->disk()];
+        return ['path' => $path, 'url' => $this->urlForPath($path), 'disk' => $this->disk()];
     }
 
     /**
@@ -87,6 +112,16 @@ class MapStorage
     public function urlFor(Zone $zone): ?string
     {
         return $this->urlForPath($zone->inundation_map_path);
+    }
+
+    /** Remove every stored map for a zone. Used when reseeding a demo environment. */
+    public function clearZone(Zone $zone): void
+    {
+        try {
+            Storage::disk($this->disk())->deleteDirectory('inundation-maps/'.$zone->slug);
+        } catch (Throwable $e) {
+            Log::warning('Could not clear inundation maps', ['zone' => $zone->slug, 'error' => $e->getMessage()]);
+        }
     }
 
     public function delete(?string $path): void
