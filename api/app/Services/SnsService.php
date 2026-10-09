@@ -94,18 +94,17 @@ class SnsService
         }
 
         try {
+            // ReturnSubscriptionArn jaan-bujh ke NAHI bhejte. Uske saath SNS pending
+            // subscription ka bhi asli ARN laut deta hai, aur tab "confirmed hua ya
+            // nahi" ka koi farq hi nahi bachta. Bina uske, pending ka jawaab literal
+            // string "pending confirmation" hota hai, aur confirmed ka asli ARN.
             $result = $this->client()->subscribe([
                 'TopicArn' => $this->ensureTopic($village),
                 'Protocol' => 'email',
                 'Endpoint' => $email,
-                'ReturnSubscriptionArn' => true,
             ]);
 
             $arn = (string) $result->get('SubscriptionArn');
-
-            // An address that already confirmed comes back with its real ARN
-            // and gets no second email. An unconfirmed one comes back as the
-            // literal string "pending confirmation".
             $confirmed = str_starts_with($arn, 'arn:');
 
             return [
@@ -127,6 +126,49 @@ class SnsService
     }
 
     /**
+     * Is gaon ke topic pe kitne email sach mein confirmed hain, SNS se poocha hua.
+     *
+     * KYUN SNS se, apne database se nahi: confirmation ka click AWS pe hota hai, hamare
+     * app pe nahi. Agar sirf apni row padhein to officer ko wo number dikhega jo humne
+     * aakhri baar likha tha, na ki wo jo sach mein alert payega. Call fail ho to database
+     * ka number wapas de dete hain, kyunki galat number bhi bina number se behtar hai.
+     */
+    private function confirmedCount(Village $village): int
+    {
+        $fromDb = Subscriber::where('village_id', $village->id)->confirmed()->count();
+
+        if (! $village->sns_topic_arn) {
+            return $fromDb;
+        }
+
+        try {
+            $confirmed = 0;
+            $token = null;
+
+            do {
+                $page = $this->client()->listSubscriptionsByTopic(array_filter([
+                    'TopicArn' => $village->sns_topic_arn,
+                    'NextToken' => $token,
+                ]));
+
+                foreach ($page->get('Subscriptions') ?? [] as $sub) {
+                    if (str_starts_with((string) ($sub['SubscriptionArn'] ?? ''), 'arn:')) {
+                        $confirmed++;
+                    }
+                }
+
+                $token = $page->get('NextToken');
+            } while ($token);
+
+            return $confirmed;
+        } catch (AwsException $e) {
+            Log::warning('SNS subscriber count failed', ['village' => $village->id, 'error' => $e->getAwsErrorMessage()]);
+
+            return $fromDb;
+        }
+    }
+
+    /**
      * Publish an officer alert to its village topic.
      *
      * The return shape matches what the dashboard already expected from the
@@ -139,13 +181,11 @@ class SnsService
     {
         $village = $alert->village ?? Village::find($alert->village_id);
 
-        $confirmed = $village
-            ? Subscriber::where('village_id', $village->id)->confirmed()->count()
-            : 0;
-
         if (! $village) {
             return $this->result(0, 0, 0, 'Village not found for this alert.');
         }
+
+        $confirmed = $this->confirmedCount($village);
 
         if (! $this->enabled()) {
             return $this->result($confirmed, 0, 0, 'Amazon SNS is turned off in this environment.');
