@@ -57,10 +57,24 @@ body {
   font-family: 'Inter', sans-serif;
   background: var(--bg);
   color: var(--ink);
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
   font-size: 13px;
   -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * Scroll lock sirf dashboard pe.
+ *
+ * Command center ek fixed full-screen layout hai: wo apne panels ke andar khud scroll
+ * karta hai, isliye page khud nahi hilna chahiye. Citizen page uska ulta hai — wo ek
+ * lamba column hai jise neeche tak scroll karna hi padta hai. Pehle ye lock body pe
+ * sabke liye laga tha, to citizen page neeche scroll hi nahi hota tha.
+ *
+ * App.jsx mount pe ye class lagata hai aur unmount pe hata deta hai.
+ */
+body.dash {
+  height: 100vh;
+  overflow: hidden;
 }
 
 /**
@@ -77,6 +91,10 @@ body {
  * aur andar ke scrollable panels ke bajaye poora page scroll karne lagta hai.
  */
 #root {
+  min-height: 100vh;
+}
+
+body.dash #root {
   height: 100vh;
   display: flex;
   flex-direction: column;

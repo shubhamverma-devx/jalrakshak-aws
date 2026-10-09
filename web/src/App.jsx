@@ -50,6 +50,15 @@ import { dayLabel } from './utils/format'
 import { derivePhase } from './utils/risk'
 
 export default function App() {
+  // Dashboard apne panels ke andar scroll karta hai, page khud nahi. Ye class body pe
+  // scroll lock lagati hai, aur sirf tab tak jab tak dashboard khula hai — citizen page
+  // ko lock nahi milna chahiye, wo ek lamba scroll wala column hai.
+  useEffect(() => {
+    document.body.classList.add('dash')
+
+    return () => document.body.classList.remove('dash')
+  }, [])
+
   // --- UI state --------------------------------------------------------------------
   const [mode, setMode] = useState('replay') // demo replay se shuru hota hai (BUILD_PLAN section 11)
   const [day, setDay] = useState(0)
