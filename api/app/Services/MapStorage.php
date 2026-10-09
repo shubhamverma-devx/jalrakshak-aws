@@ -36,6 +36,19 @@ class MapStorage
     }
 
     /**
+     * Object key prefix, namespaced by environment.
+     *
+     * KYUN: local aur EC2 dono ek hi bucket use karte hain. Bina alag prefix ke, local
+     * pe seed chalane se production ke objects delete ho jaate the (reseed pehle village
+     * ka folder saaf karta hai) aur live citizen page ka map 404 dene lagta tha. Ab dono
+     * apne-apne hisse mein likhte hain.
+     */
+    public function prefix(): string
+    {
+        return 'inundation-maps/'.config('app.env', 'local');
+    }
+
+    /**
      * Put an uploaded map in storage and record it on the village.
      *
      * @return array{path: string, url: ?string, disk: string}
@@ -72,7 +85,7 @@ class MapStorage
     private function put(Village $village, string $contents, string $extension, string $mime): array
     {
         $filename = sprintf('%s-%s.%s', $village->id, now()->format('Ymd-His'), $extension);
-        $path = 'inundation-maps/'.$village->id.'/'.$filename;
+        $path = $this->prefix().'/'.$village->id.'/'.$filename;
 
         Storage::disk($this->disk())->put($path, $contents, ['ContentType' => $mime]);
 
@@ -123,7 +136,7 @@ class MapStorage
     public function clearVillage(Village $village): void
     {
         try {
-            Storage::disk($this->disk())->deleteDirectory('inundation-maps/'.$village->id);
+            Storage::disk($this->disk())->deleteDirectory($this->prefix().'/'.$village->id);
         } catch (Throwable $e) {
             Log::warning('Could not clear inundation maps', ['village' => $village->id, 'error' => $e->getMessage()]);
         }

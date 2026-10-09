@@ -874,9 +874,40 @@ body.dash #root {
 
 .gate-foot a { color: var(--accent-2); }
 
+/* Phone.
+   Header mein logo + do toggle ek line mein 390px se chaude ho jaate the. Flex unhe
+   sikod nahi sakta tha, to poora page viewport se chauda ho jaata tha aur har cheez
+   dayin taraf se kat jaati thi. Ab toggle doosri line mein chale jaate hain. */
+@media (max-width: 560px) {
+  .cz-top {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 9px 12px;
+    gap: 8px;
+  }
+
+  .cz-top .spacer { display: none; }
+  .cz-top .logo { width: 100%; }
+
+  .cz-lang { flex: 1 1 0; min-width: 0; }
+  .cz-lang button { flex: 1 1 0; min-width: 0; padding: 5px 4px; }
+}
+
 @media (max-width: 520px) {
+  .cz-wrap { padding: 16px 12px 40px; }
   .cz-h1 { font-size: 20px; }
+  .cz-hero { padding: 15px; }
   .cz-hero-level { font-size: 28px; }
+  .cz-hero-advice { font-size: 15px; }
+  .cz-facts { grid-template-columns: 1fr 1fr; }
+}
+
+/* Lambe bina space wale shabd (email, URL) ko todna hi padega, warna wo bhi page
+   ko chauda kar dete hain. */
+.cz-alert,
+.cz-shelter,
+.cz-panel .pbody p {
+  overflow-wrap: anywhere;
 }
 
 .cz-mode {
