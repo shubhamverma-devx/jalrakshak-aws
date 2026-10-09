@@ -49,6 +49,33 @@ The district command center. 30 villages across Assam on one screen.
 
 Behind a sign in, because it is on the public internet.
 
+### Android app (`app/`)
+
+Kotlin and Jetpack Compose. The citizen picks their village once, then gets:
+
+- Risk right now in Hindi or English, with what to do about it.
+- Rainfall and river level against that village's own danger mark.
+- The nearest relief shelter with distance, capacity and a route.
+- **मदद माँगें**, an SOS that lands in the officer's relief queue with the
+  phone's location, falling back to the village coordinates indoors.
+- A **push notification** when the officer sends an alert.
+- An offline basemap (`assam.pmtiles`, 35 MB, bundled in the APK), because the
+  network is the first thing a flood takes away.
+
+Build it:
+
+```bash
+cd app
+# Firebase Console > Project settings > Android app > google-services.json
+cp /path/to/google-services.json app/google-services.json
+echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+`google-services.json` is not in git. The API base URL is one line in
+`app/src/main/java/com/blackbox/jalrakshak/core/Config.kt`.
+
 ### Citizen page (`/`)
 
 - Pick your village, see the risk level in one word, in Hindi or English.
@@ -57,9 +84,8 @@ Behind a sign in, because it is on the public internet.
 - See the nearest relief shelters.
 - Subscribe to alerts for your village.
 
-Mobile responsive, one column, large type. The SIH build served citizens through
-an Android app; this hackathon is web only, so the same job is done by a page
-that needs no install.
+Mobile responsive, one column, large type. It covers the people who will not
+install an app: no download, no Play Store, works on any phone with a browser.
 
 ---
 
@@ -69,7 +95,7 @@ that needs no install.
 |---|---|---|
 | **Amazon EC2** | A single t3.micro instance runs the whole stack: Nginx serving the React build, PHP-FPM running the Laravel API, and MySQL. This is the deployed app and the live URL. | Deployed on AWS, which satisfies the eligibility rule on its own. |
 | **Amazon S3** | Bucket holds the per-village inundation maps. Officers upload through the dashboard, Laravel writes to the bucket, and the citizen page reads them back through a presigned URL so the bucket itself stays private. | Durable object storage for the artefact that matters most to a citizen: the map of what goes under water. |
-| **Amazon SNS** | One topic per village, 30 of them. A citizen subscribing creates an email subscription on their village's topic. "Send alert" is a single `Publish` that SNS fans out to every confirmed subscriber of that village. | Targeted fan-out that scales from 30 villages to 3,000 without the app changing. It also replaces the Firebase push path, so alerts now reach people with no app installed. |
+| **Amazon SNS** | One topic per village, 30 of them. A citizen subscribing on the web creates an email subscription on their village's topic. "Send alert" is a single `Publish` that SNS fans out to every confirmed subscriber of that village. | Targeted fan-out that scales from 30 villages to 3,000 without the app changing, and reaches the people who never install an app. |
 
 Code pointers:
 
@@ -78,6 +104,26 @@ Code pointers:
 - EC2: `deploy/ec2-setup.sh`, `deploy/nginx-jalrakshak.conf`
 
 ---
+
+## One alert, two ways out
+
+An officer presses Send alert once. It leaves the building twice:
+
+```
+POST /api/alert
+   |
+   +-- Firebase Cloud Messaging --> push notification on every phone
+   |                                with the app in that village
+   |
+   +-- Amazon SNS, village topic --> email to everyone subscribed
+                                     on the web, no install needed
+```
+
+Neither path depends on the other, and the alert is written to the database
+before either runs. If FCM is down the email still goes; if nobody has the app
+the dashboard says so rather than reporting success. The officer sees the two
+results separately, because "nobody here has the app" and "sending failed" call
+for different next steps.
 
 ## The risk engine
 
@@ -103,8 +149,8 @@ two visibly separate so nobody mistakes one for the other.
 
 ## SMS and DLT
 
-Alerts go out as **email through Amazon SNS**, which works instantly and needs
-no approval.
+The app gets a **push notification** and the web gets an **email through Amazon
+SNS**. Both work instantly and need no approval.
 
 The citizen form also takes a phone number, and the number is stored, but SMS is
 not sent. Sending SMS to Indian numbers requires TRAI DLT registration of the
@@ -119,15 +165,21 @@ clears, SNS sends SMS through the same topic with no application change.
 - **Backend:** Laravel 12, PHP 8.3
 - **Frontend:** React 19 with Vite, React Router, Leaflet with OpenStreetMap tiles
 - **Database:** MySQL 8, on the same EC2 instance
+- **App:** Kotlin, Jetpack Compose, Retrofit, MapLibre with offline PMTiles
+- **Push:** Firebase Cloud Messaging for the app, Amazon SNS email for the web
 - **Cloud:** Amazon EC2, Amazon S3, Amazon SNS, region `ap-south-1` (Mumbai)
 
 ```
 jalrakshak-aws/
   api/      Laravel 12 REST API
   web/      React + Vite frontend (officer dashboard + citizen page)
+  app/      Android app, Kotlin + Jetpack Compose
   data/     Assam demo CSVs the seeders read
   deploy/   Nginx config, EC2 setup script, IAM policy
 ```
+
+Three clients, one API: the officer dashboard, the citizen web page, and the
+Android app.
 
 ---
 
@@ -237,7 +289,7 @@ Push an update later with `sudo /var/www/jalrakshak-aws/deploy/deploy.sh`.
 | GET | `/api/alerts` | no | Alert history |
 | POST | `/api/relief` | no | A citizen sends an SOS |
 | POST | `/api/subscribe` | no | Subscribe an email to a village's SNS topic |
-| POST | `/api/register-token` | no | Android push registration |
+| POST | `/api/register-token` | no | Android app registers its FCM token for a village |
 | GET | `/api/sar/scenes` | no | Bundled SAR scenes and model provenance |
 | POST | `/api/sar/detect` | no | Run the U-Net on a scene |
 | POST | `/api/officer/login` | no | Returns the officer bearer token |

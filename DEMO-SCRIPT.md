@@ -15,9 +15,16 @@ Total 3:00. Timings are the spoken length, so leave a little room.
    your inbox and click **Confirm subscription** in the mail from AWS. Nothing
    arrives without that click, and the dashboard will honestly tell you nobody
    is subscribed if you skip it.
-2. Sign in to the officer dashboard and leave it on **Replay 2022**, day 1.
-3. Have your inbox open in a second tab.
-4. Record at 1080p. The dashboard is dense; do not shrink the window.
+2. Start the emulator, install the app, open it and pick **Cachar** there too.
+   That is what registers the phone for push.
+   ```bash
+   ~/Library/Android/sdk/emulator/emulator -avd Pixel_7_Adhikar &
+   cd app && ./gradlew :app:assembleDebug
+   adb install -r app/build/outputs/apk/debug/app-debug.apk
+   ```
+3. Sign in to the officer dashboard and leave it on **Replay 2022**, day 1.
+4. Have your inbox open in a second tab, and the emulator window visible.
+5. Record at 1080p. The dashboard is dense; do not shrink the window.
 
 ---
 
@@ -63,32 +70,46 @@ _Point at the Satellite tab, do not open it unless you have time._
 
 ---
 
-## 3. The alert, 1:20 to 2:00
+## 3. The alert, 1:20 to 2:10
 
 _Press **Send alert** in the top bar. Pick Cachar._
 
 > This is the only action an officer actually takes here. Pick the village,
 > check the Hindi and the English, send.
 
-_Send it._
+_Send it. The success screen shows two blocks._
 
-> That is one publish to Cachar's own **Amazon SNS** topic, and SNS fans it out
-> to everyone subscribed to that village. Not a blanket district SMS. Just the
-> village that needs it.
+> One press, and it leaves two ways. A push notification to every phone running
+> our app in Cachar. And an email through **Amazon SNS** to everyone who
+> subscribed on the web, for people who will never install an app.
+>
+> Not a blanket district SMS. Just the village that needs it.
 
-_Switch to your inbox. The mail should already be there._
+_Cut to the emulator. The notification is already on screen._
 
-> And it is already here. The level, what to do, and a link straight to the
-> page for that village.
+> There it is on the phone, in Hindi.
+
+_Cut to your inbox._
+
+> And the email, with the level, what to do, and a link to that village's page.
 
 ---
 
-## 4. Citizen page, 2:00 to 2:30
+## 4. The app and the citizen page, 2:10 to 2:40
 
-_Follow the link in the email, or open the citizen page._
+_Open the app on the emulator._
 
-> This is what a person in Cachar sees. One word: danger. What to do, in Hindi.
-> Why, in a sentence.
+> This is what a person in Cachar sees. One word. What to do. The nearest relief
+> shelter with a route. And a button to ask for help, which lands straight in
+> the officer's relief queue.
+>
+> The basemap is bundled in the app, so it still works when the network is the
+> first thing the flood takes away.
+
+_Switch to the citizen page in the browser._
+
+> Same thing on the web for anyone without the app. One word: danger. What to
+> do, in Hindi. Why, in a sentence.
 
 _Scroll to the inundation map._
 
@@ -102,7 +123,7 @@ _Scroll to shelters, then the subscribe box._
 
 ---
 
-## 5. Where AWS fits, 2:30 to 2:50
+## 5. Where AWS fits, 2:40 to 2:55
 
 > Three AWS services, each doing a real job.
 >
@@ -118,7 +139,7 @@ _Scroll to shelters, then the subscribe box._
 
 ---
 
-## 6. Close, 2:50 to 3:00
+## 6. Close, 2:55 to 3:00
 
 > Alerts go by email today. SMS to Indian numbers needs TRAI DLT registration,
 > which takes weeks, so the app says so on screen instead of faking it.
@@ -139,9 +160,13 @@ twice.
 ## If something breaks on the day
 
 - **Email does not arrive.** The subscription was never confirmed. The dashboard
-  will have said so: "nobody in this village has confirmed an alert subscription
-  yet". Check the SNS console, Subscriptions, status must be a real ARN, not
-  `PendingConfirmation`.
+  will have said so. Check the SNS console, Subscriptions, status must be a real
+  ARN, not `PendingConfirmation`.
+- **Push does not arrive.** The phone never registered. Open the app and pick
+  the village again, that is what posts the token. Check with
+  `sudo mysql jalrakshak_aws -e 'select * from device_tokens'` on the instance.
+  Also make sure the emulator clock is right: `adb shell settings put global
+  auto_time 1`, because a stale clock breaks the TLS handshake to Google.
 - **Dashboard is empty.** `risk:compute` has not run.
   `sudo php artisan risk:compute --mode=replay --day=5` in
   `/var/www/jalrakshak-aws/api`.
