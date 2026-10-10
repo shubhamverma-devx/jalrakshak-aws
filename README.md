@@ -10,6 +10,15 @@ Track: **Heat and Water (floods)**.
 >
 > Running on a single Amazon EC2 t3.micro in `ap-south-1`.
 
+### For judges
+
+The **citizen page needs no login**: open the live URL, pick a village, and
+everything on it works.
+
+The **officer dashboard** sits behind a sign in, because it can issue real
+alerts to real subscribers. Demo credentials are in the submission form. The
+three minute video walks through the whole dashboard either way.
+
 ---
 
 ## The problem
