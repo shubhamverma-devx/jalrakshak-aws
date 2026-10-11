@@ -45,22 +45,32 @@ Route::get('/village/{id}/forecast', [VillageController::class, 'forecast']);  /
 Route::get('/shelters', [ShelterController::class, 'index']);
 
 // --- Relief / SOS (two-way) ---------------------------------------------------------
-Route::post('/relief', [ReliefController::class, 'store']);        // citizen bhejta hai, public
+// Public hai (app bina login ke SOS bhejti hai), isliye throttled — warna officer
+// ki relief queue kachre se bhar di ja sakti hai aur asli SOS dab jaayega.
+Route::post('/relief', [ReliefController::class, 'store'])
+    ->middleware('throttle:10,1');                                  // citizen bhejta hai, public
 
 // --- Push registration (citizen app har launch pe call karti hai) -------------------
-Route::post('/register-token', [DeviceTokenController::class, 'store']);
+Route::post('/register-token', [DeviceTokenController::class, 'store'])
+    ->middleware('throttle:20,1');
 
 // --- Alerts (targeted, Hindi+English) -----------------------------------------------
 Route::get('/alerts', [AlertController::class, 'index']);          // history / citizen feed, public
 
 // --- Citizen alert subscription (Amazon SNS, no app install needed) -----------------
-Route::post('/subscribe', [SubscriberController::class, 'store']);
+// Throttled: ye endpoint public hai aur kisi bhi address pe Amazon SNS se mail
+// bhijwa sakta hai. Bina limit ke ye kisi ko bhi email bombing ka raasta de deta.
+Route::post('/subscribe', [SubscriberController::class, 'store'])->middleware('throttle:5,1');
 
 // --- Officer sign in ----------------------------------------------------------------
-Route::post('/officer/login', [OfficerAuthController::class, 'login']);
+// Throttled taaki password brute force na ho sake.
+Route::post('/officer/login', [OfficerAuthController::class, 'login'])
+    ->middleware('throttle:5,1');
 
 // --- Officer only. Bearer token from POST /officer/login. ---------------------------
-Route::middleware('officer')->group(function () {
+// Alert bhejna asli logon tak pahunchta hai, isliye upar se ek aur limit: ek galat
+// haath me token aa bhi jaye to wo logon pe alert ki barsaat nahi kar sakta.
+Route::middleware(['officer', 'throttle:20,1'])->group(function () {
     Route::post('/alert', [AlertController::class, 'store']);           // Amazon SNS publish
     Route::get('/relief', [ReliefController::class, 'index']);          // officer dekhta hai
     Route::patch('/relief/{id}', [ReliefController::class, 'update']);  // status badalta hai

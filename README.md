@@ -27,6 +27,26 @@ Three things to open, in the order that makes most sense:
 
 The three minute video walks through all of it either way.
 
+#### Want to receive a real alert yourself?
+
+Four steps, about two minutes:
+
+1. On the citizen page, pick a village (**Cachar** is a good one, it has an
+   inundation map) and subscribe with your own email.
+2. Amazon SNS emails you a confirmation. Click **Confirm subscription** in it.
+   Nothing arrives until you do, and the dashboard will say so rather than
+   pretending otherwise.
+3. Sign in to the officer dashboard and press **Send alert** in the top bar.
+   Pick the same village.
+4. The email lands in your inbox. The success screen shows the SNS message id,
+   so you can check it against the alert you just sent.
+
+If you also installed the app and picked that village in it, the same press
+puts a push notification on the phone at the same time.
+
+Writes are rate limited, so if you are trying this at the same time as someone
+else you may see a 429 for a minute.
+
 ---
 
 ## The problem
