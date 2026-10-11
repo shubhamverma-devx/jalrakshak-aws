@@ -10,14 +10,22 @@ Track: **Heat and Water (floods)**.
 >
 > Running on a single Amazon EC2 t3.micro in `ap-south-1`.
 
+> **Android app:** [download the APK](https://github.com/shubhamverma-devx/jalrakshak-aws/releases/download/v1.0-demo/jalrakshak-demo.apk) (80 MB)
+
 ### For judges
 
-The **citizen page needs no login**: open the live URL, pick a village, and
-everything on it works.
+Three things to open, in the order that makes most sense:
 
-The **officer dashboard** sits behind a sign in, because it can issue real
-alerts to real subscribers. Demo credentials are in the submission form. The
-three minute video walks through the whole dashboard either way.
+1. **The citizen page.** No login. Open the live URL, pick a village, done.
+2. **The Android app.** [Download the APK](https://github.com/shubhamverma-devx/jalrakshak-aws/releases/download/v1.0-demo/jalrakshak-demo.apk) on an Android phone and open
+   it. Android warns about installing from an unknown source, because this is a
+   debug build signed with a debug key; allow it. Pick a village and allow
+   notifications. The app is already pointed at the EC2 API, nothing to
+   configure. On iPhone, the citizen page is the same thing without an install.
+3. **The officer dashboard.** Behind a sign in, because it issues real alerts to
+   real subscribers. Credentials are in the submission form.
+
+The three minute video walks through all of it either way.
 
 ---
 
@@ -71,7 +79,7 @@ Kotlin and Jetpack Compose. The citizen picks their village once, then gets:
 - An offline basemap (`assam.pmtiles`, 35 MB, bundled in the APK), because the
   network is the first thing a flood takes away.
 
-Build it:
+[Download the built APK](https://github.com/shubhamverma-devx/jalrakshak-aws/releases/download/v1.0-demo/jalrakshak-demo.apk), or build it yourself:
 
 ```bash
 cd app
